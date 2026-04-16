@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FlowBoard Planner</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="hero">
+        <div class="hero__copy">
+          <p class="eyebrow">Kanban Activity Planner</p>
+          <h1>Plan work clearly, move tasks fast, stay focused.</h1>
+          <p class="hero__text">
+            FlowBoard keeps activities visible across each stage so you can
+            organize priorities, track progress, and finish work with less
+            friction.
+          </p>
+        </div>
+
+        <div class="hero__stats" id="stats-panel" aria-label="Planner summary"></div>
+      </header>
+
+      <main class="layout">
+        <section class="panel composer-panel" aria-labelledby="composer-title">
+          <div class="panel__header">
+            <div>
+              <p class="panel__eyebrow">Activity</p>
+              <h2 id="composer-title">Add or update a task</h2>
+            </div>
+          </div>
+
+          <form id="task-form" class="task-form">
+            <input type="hidden" id="task-id" />
+
+            <label>
+              Title
+              <input
+                id="task-title"
+                name="title"
+                type="text"
+                placeholder="Prepare sprint planning"
+                maxlength="80"
+                required
+              />
+            </label>
+
+            <label>
+              Description
+              <textarea
+                id="task-description"
+                name="description"
+                rows="4"
+                placeholder="Outline the next work items and assign owners."
+                maxlength="220"
+              ></textarea>
+            </label>
+
+            <div class="task-form__grid">
+              <label>
+                Owner
+                <input
+                  id="task-owner"
+                  name="owner"
+                  type="text"
+                  placeholder="Team or person"
+                  maxlength="40"
+                />
+              </label>
+
+              <label>
+                Due date
+                <input id="task-due-date" name="dueDate" type="date" />
+              </label>
+
+              <label>
+                Priority
+                <select id="task-priority" name="priority">
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="low">Low</option>
+                </select>
+              </label>
+
+              <label>
+                Status
+                <select id="task-status" name="status">
+                  <option value="backlog">Backlog</option>
+                  <option value="todo">To Do</option>
+                  <option value="progress">In Progress</option>
+                  <option value="done">Done</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="task-form__actions">
+              <button class="button button--primary" type="submit" id="submit-button">
+                Add activity
+              </button>
+              <button class="button button--ghost" type="button" id="reset-button">
+                Clear form
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel filters-panel" aria-labelledby="filters-title">
+          <div class="panel__header">
+            <div>
+              <p class="panel__eyebrow">Filters</p>
+              <h2 id="filters-title">Focus the board</h2>
+            </div>
+          </div>
+
+          <div class="filters">
+            <label>
+              Search
+              <input
+                id="search-input"
+                type="search"
+                placeholder="Search title, description, owner..."
+              />
+            </label>
+
+            <label>
+              Priority
+              <select id="priority-filter">
+                <option value="all">All priorities</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </label>
+
+            <button class="button button--ghost" id="clear-filters" type="button">
+              Reset filters
+            </button>
+          </div>
+        </section>
+
+        <section class="board-section" aria-labelledby="board-title">
+          <div class="board-section__header">
+            <div>
+              <p class="panel__eyebrow">Board</p>
+              <h2 id="board-title">Kanban workflow</h2>
+            </div>
+            <p class="board-section__hint">
+              Drag cards between columns on desktop, or use the move buttons on
+              each task.
+            </p>
+          </div>
+
+          <div class="kanban-board" id="kanban-board" aria-live="polite"></div>
+        </section>
+      </main>
+    </div>
+
+    <template id="column-template">
+      <section class="kanban-column">
+        <header class="kanban-column__header">
+          <div>
+            <h3 class="kanban-column__title"></h3>
+            <p class="kanban-column__subtitle"></p>
+          </div>
+          <span class="kanban-column__count"></span>
+        </header>
+        <div class="kanban-column__list"></div>
+      </section>
+    </template>
+
+    <template id="task-template">
+      <article class="task-card" draggable="true">
+        <div class="task-card__top">
+          <span class="task-card__priority"></span>
+          <span class="task-card__date"></span>
+        </div>
+        <h4 class="task-card__title"></h4>
+        <p class="task-card__description"></p>
+        <div class="task-card__meta"></div>
+        <div class="task-card__actions"></div>
+      </article>
+    </template>
+
+    <script src="script.js"></script>
+  </body>
+</html>
