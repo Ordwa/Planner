@@ -96,7 +96,7 @@ let draggedTaskId = null;
 
 taskForm.addEventListener("submit", handleTaskSubmit);
 resetButton.addEventListener("click", closeTaskModal);
-openTaskModalButton.addEventListener("click", () => openTaskModal());
+openTaskModalButton.addEventListener("click", createDraftTask);
 closeTaskModalButton.addEventListener("click", closeTaskModal);
 
 taskModal.addEventListener("click", (event) => {
@@ -201,6 +201,23 @@ function handleTaskSubmit(event) {
   saveTasks();
   render();
   closeTaskModal();
+}
+
+function createDraftTask() {
+  const draftTask = {
+    id: generateId(),
+    title: "New activity",
+    description: "Click this card to add details.",
+    owner: "",
+    dueDate: "",
+    priority: "medium",
+    status: "backlog",
+    createdAt: Date.now(),
+  };
+
+  state.tasks = [draftTask, ...state.tasks];
+  saveTasks();
+  render();
 }
 
 function resetForm() {
