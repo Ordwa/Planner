@@ -71,30 +71,50 @@
               </div>
             </div>
 
-            <button
-              class="button button--ghost command-topbar__utility"
-              type="button"
-              aria-label="Notifications"
-            >
-              <svg
-                class="command-topbar__icon"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
+            <div class="notifications-menu">
+              <button
+                class="button button--ghost command-topbar__utility"
+                id="notifications-button"
+                type="button"
+                aria-label="Notifications"
+                aria-expanded="false"
+                aria-controls="notifications-panel"
+                aria-haspopup="true"
               >
-                <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5" />
-                <path d="M9.5 20a2.5 2.5 0 0 0 5 0" />
-              </svg>
-            </button>
+                <svg
+                  class="command-topbar__icon"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5" />
+                  <path d="M9.5 20a2.5 2.5 0 0 0 5 0" />
+                </svg>
+                <span class="command-topbar__badge" id="notifications-badge" hidden>0</span>
+              </button>
+
+              <div class="notifications-popover" id="notifications-panel" hidden>
+                <div class="notifications-popover__header">
+                  <p class="section-label">Notifications</p>
+                  <h2>Overdue activities</h2>
+                </div>
+
+                <div class="notifications-list" id="notifications-list"></div>
+              </div>
+            </div>
 
             <button
               class="button button--ghost command-topbar__utility"
+              id="notes-button"
               type="button"
               aria-label="Notes"
+              aria-expanded="false"
+              aria-controls="notes-drawer"
+              aria-haspopup="dialog"
             >
               <svg
                 class="command-topbar__icon"
@@ -128,7 +148,6 @@
           <section class="board-panel" aria-labelledby="board-title">
             <div class="board-panel__header">
               <div>
-                <p class="section-label">Board</p>
                 <h1 id="board-title">Activities</h1>
               </div>
               <button
@@ -144,6 +163,41 @@
           </section>
         </main>
       </div>
+    </div>
+
+    <div class="notes-drawer" id="notes-drawer" hidden>
+      <div class="notes-drawer__backdrop" data-close-notes="true"></div>
+
+      <section
+        class="notes-drawer__panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="notes-drawer-title"
+      >
+        <div class="notes-drawer__header">
+          <div>
+            <p class="section-label">Notes</p>
+          </div>
+
+          <button
+            class="icon-button"
+            id="close-notes-drawer"
+            type="button"
+            data-close-notes="true"
+            aria-label="Close notes drawer"
+          >
+            X
+          </button>
+        </div>
+
+        <div class="notes-drawer__body">
+          <textarea
+            class="notes-drawer__textarea"
+            id="notes-textarea"
+            placeholder="Write your notes here..."
+          ></textarea>
+        </div>
+      </section>
     </div>
 
     <div class="task-modal" id="task-modal" hidden>
@@ -194,7 +248,6 @@
               name="description"
               rows="4"
               placeholder="Outline the next work items and assign owners."
-              maxlength="220"
             ></textarea>
           </label>
 
@@ -241,8 +294,8 @@
                 <h3 id="checklist-title">Task</h3>
               </div>
               <label class="task-form__toggle" for="show-checklist-on-card">
-                <span>Show in card</span>
                 <input id="show-checklist-on-card" type="checkbox" />
+                <span>Show in card</span>
               </label>
             </div>
 
@@ -277,7 +330,6 @@
                 id="comment-input"
                 rows="3"
                 placeholder="Add an update or note for this activity"
-                maxlength="280"
               ></textarea>
               <button
                 class="button button--ghost"

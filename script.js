@@ -1,4 +1,5 @@
 const STORAGE_KEY = "flowboard-planner-state";
+const NOTES_STORAGE_KEY = "flowboard-planner-notes";
 
 const COLUMN_CONFIG = [
   {
@@ -58,6 +59,7 @@ const DEFAULT_TASKS = [
 
 const state = {
   tasks: loadTasks(),
+  notes: loadNotes(),
   filters: {
     search: "",
     priority: "all",
@@ -76,8 +78,17 @@ const clearFiltersButton = document.querySelector("#clear-filters");
 const filtersToggle = document.querySelector("#filters-toggle");
 const filtersPanel = document.querySelector("#filters-panel");
 const filtersMenu = document.querySelector(".filters-menu");
+const notificationsMenu = document.querySelector(".notifications-menu");
 const openTaskModalButton = document.querySelector("#open-task-modal");
 const closeTaskModalButton = document.querySelector("#close-task-modal");
+const notificationsButton = document.querySelector("#notifications-button");
+const notificationsBadge = document.querySelector("#notifications-badge");
+const notificationsPanel = document.querySelector("#notifications-panel");
+const notificationsList = document.querySelector("#notifications-list");
+const notesButton = document.querySelector("#notes-button");
+const notesDrawer = document.querySelector("#notes-drawer");
+const closeNotesDrawerButton = document.querySelector("#close-notes-drawer");
+const notesTextarea = document.querySelector("#notes-textarea");
 const taskModal = document.querySelector("#task-modal");
 const taskModalTitle = document.querySelector("#task-modal-title");
 const checklistInput = document.querySelector("#checklist-input");
@@ -109,6 +120,13 @@ openTaskModalButton.addEventListener("click", () => openTaskModal());
 closeTaskModalButton.addEventListener("click", closeTaskModal);
 addChecklistItemButton.addEventListener("click", addChecklistItem);
 addCommentButton.addEventListener("click", addComment);
+notesButton.addEventListener("click", () => {
+  setFiltersOpen(false);
+  setNotificationsOpen(false);
+  setNotesDrawerOpen(notesDrawer.hidden);
+});
+closeNotesDrawerButton.addEventListener("click", closeNotesDrawer);
+notesTextarea.addEventListener("input", handleNotesInput);
 
 [fieldRefs.title, fieldRefs.description, fieldRefs.owner, fieldRefs.dueDate].forEach((field) => {
   field.addEventListener("input", autoSaveEditingTask);
@@ -138,6 +156,12 @@ taskModal.addEventListener("click", (event) => {
   }
 });
 
+notesDrawer.addEventListener("click", (event) => {
+  if (event.target.closest("[data-close-notes='true']")) {
+    closeNotesDrawer();
+  }
+});
+
 searchInput.addEventListener("input", () => {
   state.filters.search = searchInput.value.trim().toLowerCase();
   render();
@@ -159,18 +183,31 @@ clearFiltersButton.addEventListener("click", () => {
 
 filtersToggle.addEventListener("click", (event) => {
   event.stopPropagation();
+  setNotificationsOpen(false);
   setFiltersOpen(filtersPanel.hidden);
+});
+
+notificationsButton.addEventListener("click", (event) => {
+  event.stopPropagation();
+  setFiltersOpen(false);
+  setNotificationsOpen(notificationsPanel.hidden);
 });
 
 document.addEventListener("click", (event) => {
   if (!filtersMenu.contains(event.target)) {
     setFiltersOpen(false);
   }
+
+  if (!notificationsMenu.contains(event.target)) {
+    setNotificationsOpen(false);
+  }
 });
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     setFiltersOpen(false);
+    setNotificationsOpen(false);
+    closeNotesDrawer();
 
     if (!taskModal.hidden) {
       closeTaskModal();
@@ -178,6 +215,7 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
+notesTextarea.value = state.notes;
 render();
 
 function loadTasks() {
@@ -202,6 +240,28 @@ function saveTasks() {
   } catch (error) {
     console.error("Unable to save planner state:", error);
   }
+}
+
+function loadNotes() {
+  try {
+    return localStorage.getItem(NOTES_STORAGE_KEY) ?? "";
+  } catch (error) {
+    console.error("Unable to read notes state:", error);
+    return "";
+  }
+}
+
+function saveNotes() {
+  try {
+    localStorage.setItem(NOTES_STORAGE_KEY, state.notes);
+  } catch (error) {
+    console.error("Unable to save notes state:", error);
+  }
+}
+
+function handleNotesInput() {
+  state.notes = notesTextarea.value;
+  saveNotes();
 }
 
 function buildTaskFromForm(fallbackTask) {
@@ -279,6 +339,10 @@ function resetForm() {
 }
 
 function openTaskModal(task) {
+  setNotesDrawerOpen(false);
+  setFiltersOpen(false);
+  setNotificationsOpen(false);
+
   if (task) {
     fillForm(task);
     taskModalTitle.textContent = "Edit Activity";
@@ -294,13 +358,13 @@ function openTaskModal(task) {
 
   renderModalCollections();
   taskModal.hidden = false;
-  document.body.classList.add("modal-open");
+  syncOverlayState();
   fieldRefs.title.focus();
 }
 
 function closeTaskModal() {
   taskModal.hidden = true;
-  document.body.classList.remove("modal-open");
+  syncOverlayState();
   resetForm();
 }
 
@@ -309,8 +373,93 @@ function setFiltersOpen(isOpen) {
   filtersToggle.setAttribute("aria-expanded", String(isOpen));
 }
 
+function setNotificationsOpen(isOpen) {
+  notificationsPanel.hidden = !isOpen;
+  notificationsButton.setAttribute("aria-expanded", String(isOpen));
+}
+
+function setNotesDrawerOpen(isOpen) {
+  notesDrawer.hidden = !isOpen;
+  notesButton.setAttribute("aria-expanded", String(isOpen));
+  syncOverlayState();
+
+  if (isOpen) {
+    notesTextarea.focus();
+  }
+}
+
+function closeNotesDrawer() {
+  if (notesDrawer.hidden) {
+    return;
+  }
+
+  setNotesDrawerOpen(false);
+}
+
+function syncOverlayState() {
+  document.body.classList.toggle("modal-open", !taskModal.hidden || !notesDrawer.hidden);
+}
+
 function render() {
+  renderNotificationBadge();
+  renderNotificationsPanel();
   renderBoard();
+}
+
+function renderNotificationBadge() {
+  const overdueCount = getOverdueTasks().length;
+
+  notificationsBadge.hidden = overdueCount === 0;
+
+  if (overdueCount > 0) {
+    notificationsBadge.textContent = overdueCount > 9 ? "9+" : String(overdueCount);
+    notificationsButton.setAttribute(
+      "aria-label",
+      `${overdueCount} overdue activit${overdueCount === 1 ? "y" : "ies"}`
+    );
+  } else {
+    notificationsButton.setAttribute("aria-label", "Notifications");
+  }
+}
+
+function renderNotificationsPanel() {
+  const overdueTasks = getOverdueTasks();
+  notificationsList.innerHTML = "";
+
+  if (!overdueTasks.length) {
+    const emptyState = document.createElement("p");
+    emptyState.className = "notifications-empty";
+    emptyState.textContent = "No overdue activities right now.";
+    notificationsList.appendChild(emptyState);
+    return;
+  }
+
+  overdueTasks.forEach((task) => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "notification-item";
+    item.addEventListener("click", () => {
+      setNotificationsOpen(false);
+      openTaskModal(findTaskById(task.id));
+    });
+
+    const title = document.createElement("span");
+    title.className = "notification-item__title";
+    title.textContent = task.title;
+
+    const meta = document.createElement("span");
+    meta.className = "notification-item__meta";
+    meta.textContent = `${formatDate(task.dueDate)} · ${
+      COLUMN_CONFIG.find((column) => column.key === task.status)?.title ?? task.status
+    }`;
+
+    const preview = document.createElement("span");
+    preview.className = "notification-item__preview";
+    preview.textContent = getCardPreviewText(task);
+
+    item.append(title, meta, preview);
+    notificationsList.appendChild(item);
+  });
 }
 
 function renderModalCollections() {
@@ -387,9 +536,7 @@ function createTaskCard(task) {
 
   if (task.dueDate) {
     const overdue = isOverdue(task);
-    dateNode.textContent = overdue
-      ? `Overdue: ${formatDate(task.dueDate)}`
-      : formatDate(task.dueDate);
+    dateNode.textContent = formatDate(task.dueDate);
     dateNode.classList.toggle("is-overdue", overdue);
   } else {
     dateNode.remove();
@@ -669,6 +816,20 @@ function getFilteredTasks() {
   });
 }
 
+function getOverdueTasks() {
+  return state.tasks
+    .filter(isOverdue)
+    .sort((left, right) => {
+      const dueDelta = new Date(`${left.dueDate}T00:00:00`) - new Date(`${right.dueDate}T00:00:00`);
+
+      if (dueDelta !== 0) {
+        return dueDelta;
+      }
+
+      return right.createdAt - left.createdAt;
+    });
+}
+
 function isOverdue(task) {
   if (!task.dueDate || task.status === "done") {
     return false;
@@ -749,7 +910,7 @@ function renderChecklist() {
       autoSaveEditingTask();
     });
 
-    const removeButton = createMiniActionButton("Remove checklist item", "Remove", () => {
+    const removeButton = createMiniActionButton("Remove checklist item", () => {
       state.modalChecklist = state.modalChecklist.filter((entry) => entry.id !== item.id);
       renderChecklist();
       autoSaveEditingTask();
@@ -806,7 +967,7 @@ function renderComments() {
     timestamp.className = "comment-item__timestamp";
     timestamp.textContent = formatCommentTime(comment.createdAt);
 
-    const removeButton = createMiniActionButton("Remove comment", "Remove", () => {
+    const removeButton = createMiniActionButton("Remove comment", () => {
       state.modalComments = state.modalComments.filter((entry) => entry.id !== comment.id);
       renderComments();
       autoSaveEditingTask();
@@ -829,12 +990,20 @@ function createEmptyState(text) {
   return emptyState;
 }
 
-function createMiniActionButton(label, text, onClick) {
+function createMiniActionButton(label, onClick) {
   const button = document.createElement("button");
   button.type = "button";
-  button.className = "button button--ghost button--tiny";
+  button.className = "button button--ghost button--tiny button--icon";
   button.setAttribute("aria-label", label);
-  button.textContent = text;
+  button.innerHTML = `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="M19 6l-1 14H6L5 6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </svg>
+  `;
   button.addEventListener("click", onClick);
   return button;
 }
