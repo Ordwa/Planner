@@ -179,6 +179,10 @@ function render() {
 }
 
 function renderStats() {
+  if (!statsPanel) {
+    return;
+  }
+
   const filteredTasks = getFilteredTasks();
   const doneTasks = state.tasks.filter((task) => task.status === "done").length;
   const progressTasks = state.tasks.filter((task) => task.status === "progress").length;
