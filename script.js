@@ -71,8 +71,14 @@ const resetButton = document.querySelector("#reset-button");
 const searchInput = document.querySelector("#search-input");
 const priorityFilter = document.querySelector("#priority-filter");
 const clearFiltersButton = document.querySelector("#clear-filters");
+const filtersToggle = document.querySelector("#filters-toggle");
+const filtersPanel = document.querySelector("#filters-panel");
+const filtersMenu = document.querySelector(".filters-menu");
+const openTaskModalButton = document.querySelector("#open-task-modal");
+const closeTaskModalButton = document.querySelector("#close-task-modal");
+const taskModal = document.querySelector("#task-modal");
+const taskModalTitle = document.querySelector("#task-modal-title");
 const board = document.querySelector("#kanban-board");
-const statsPanel = document.querySelector("#stats-panel");
 const columnTemplate = document.querySelector("#column-template");
 const taskTemplate = document.querySelector("#task-template");
 
@@ -89,21 +95,54 @@ const fieldRefs = {
 let draggedTaskId = null;
 
 taskForm.addEventListener("submit", handleTaskSubmit);
-resetButton.addEventListener("click", resetForm);
+resetButton.addEventListener("click", closeTaskModal);
+openTaskModalButton.addEventListener("click", () => openTaskModal());
+closeTaskModalButton.addEventListener("click", closeTaskModal);
+
+taskModal.addEventListener("click", (event) => {
+  if (event.target.matches("[data-close-modal='true']")) {
+    closeTaskModal();
+  }
+});
+
 searchInput.addEventListener("input", () => {
   state.filters.search = searchInput.value.trim().toLowerCase();
   render();
 });
+
 priorityFilter.addEventListener("change", () => {
   state.filters.priority = priorityFilter.value;
   render();
 });
+
 clearFiltersButton.addEventListener("click", () => {
   state.filters.search = "";
   state.filters.priority = "all";
   searchInput.value = "";
   priorityFilter.value = "all";
+  setFiltersOpen(false);
   render();
+});
+
+filtersToggle.addEventListener("click", (event) => {
+  event.stopPropagation();
+  setFiltersOpen(filtersPanel.hidden);
+});
+
+document.addEventListener("click", (event) => {
+  if (!filtersMenu.contains(event.target)) {
+    setFiltersOpen(false);
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    setFiltersOpen(false);
+
+    if (!taskModal.hidden) {
+      closeTaskModal();
+    }
+  }
 });
 
 render();
@@ -160,8 +199,8 @@ function handleTaskSubmit(event) {
   }
 
   saveTasks();
-  resetForm();
   render();
+  closeTaskModal();
 }
 
 function resetForm() {
@@ -170,41 +209,37 @@ function resetForm() {
   fieldRefs.id.value = "";
   fieldRefs.priority.value = "medium";
   fieldRefs.status.value = "backlog";
-  submitButton.textContent = "Add task";
+}
+
+function openTaskModal(task) {
+  if (task) {
+    fillForm(task);
+    taskModalTitle.textContent = "Edit task";
+    submitButton.textContent = "Save changes";
+  } else {
+    resetForm();
+    taskModalTitle.textContent = "Add task";
+    submitButton.textContent = "Create task";
+  }
+
+  taskModal.hidden = false;
+  document.body.classList.add("modal-open");
+  fieldRefs.title.focus();
+}
+
+function closeTaskModal() {
+  taskModal.hidden = true;
+  document.body.classList.remove("modal-open");
+  resetForm();
+}
+
+function setFiltersOpen(isOpen) {
+  filtersPanel.hidden = !isOpen;
+  filtersToggle.setAttribute("aria-expanded", String(isOpen));
 }
 
 function render() {
-  renderStats();
   renderBoard();
-}
-
-function renderStats() {
-  if (!statsPanel) {
-    return;
-  }
-
-  const filteredTasks = getFilteredTasks();
-  const doneTasks = state.tasks.filter((task) => task.status === "done").length;
-  const progressTasks = state.tasks.filter((task) => task.status === "progress").length;
-  const overdueTasks = state.tasks.filter(isOverdue).length;
-
-  const stats = [
-    { label: "Tasks", value: filteredTasks.length },
-    { label: "In progress", value: progressTasks },
-    { label: "Completed", value: doneTasks },
-    { label: "Overdue", value: overdueTasks },
-  ];
-
-  statsPanel.innerHTML = "";
-  stats.forEach((stat) => {
-    const card = document.createElement("article");
-    card.className = "stat-card";
-    card.innerHTML = `
-      <span class="stat-card__label">${stat.label}</span>
-      <strong class="stat-card__value">${stat.value}</strong>
-    `;
-    statsPanel.appendChild(card);
-  });
 }
 
 function renderBoard() {
@@ -268,7 +303,9 @@ function createTaskCard(task) {
 
   if (task.dueDate) {
     const overdue = isOverdue(task);
-    dateNode.textContent = overdue ? `Overdue: ${formatDate(task.dueDate)}` : `Due: ${formatDate(task.dueDate)}`;
+    dateNode.textContent = overdue
+      ? `Overdue: ${formatDate(task.dueDate)}`
+      : `Due: ${formatDate(task.dueDate)}`;
     dateNode.classList.toggle("is-overdue", overdue);
   } else {
     dateNode.textContent = "No due date";
@@ -278,7 +315,24 @@ function createTaskCard(task) {
     metaNode.appendChild(createPill(task.owner));
   }
 
-  metaNode.appendChild(createPill(COLUMN_CONFIG.find((column) => column.key === task.status)?.title ?? task.status));
+  metaNode.appendChild(
+    createPill(COLUMN_CONFIG.find((column) => column.key === task.status)?.title ?? task.status)
+  );
+
+  card.addEventListener("click", (event) => {
+    if (event.target.closest(".task-card__actions")) {
+      return;
+    }
+
+    openTaskModal(task);
+  });
+
+  card.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openTaskModal(task);
+    }
+  });
 
   card.addEventListener("dragstart", () => {
     draggedTaskId = task.id;
@@ -291,8 +345,7 @@ function createTaskCard(task) {
     clearDropTargets();
   });
 
-  const actionButtons = buildTaskActions(task);
-  actionButtons.forEach((button) => actionsNode.appendChild(button));
+  buildTaskActions(task).forEach((button) => actionsNode.appendChild(button));
 
   return fragment;
 }
@@ -318,12 +371,6 @@ function buildTaskActions(task) {
   }
 
   buttons.push(
-    createButton("Edit", "button button--ghost button--small", () => {
-      fillForm(task);
-    })
-  );
-
-  buttons.push(
     createButton("Delete", "button button--danger button--small", () => {
       deleteTask(task.id);
     })
@@ -337,7 +384,10 @@ function createButton(text, className, onClick) {
   button.type = "button";
   button.className = className;
   button.textContent = text;
-  button.addEventListener("click", onClick);
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    onClick();
+  });
   return button;
 }
 
@@ -357,15 +407,15 @@ function fillForm(task) {
   fieldRefs.dueDate.value = task.dueDate;
   fieldRefs.priority.value = task.priority;
   fieldRefs.status.value = task.status;
-  submitButton.textContent = "Update task";
-  fieldRefs.title.focus();
 }
 
 function deleteTask(taskId) {
   state.tasks = state.tasks.filter((task) => task.id !== taskId);
+
   if (state.editingTaskId === taskId) {
-    resetForm();
+    closeTaskModal();
   }
+
   saveTasks();
   render();
 }
@@ -374,12 +424,11 @@ function moveTask(taskId, nextStatus) {
   state.tasks = state.tasks.map((task) =>
     task.id === taskId ? { ...task, status: nextStatus } : task
   );
+
   if (state.editingTaskId === taskId) {
-    const currentTask = findTaskById(taskId);
-    if (currentTask) {
-      fieldRefs.status.value = currentTask.status;
-    }
+    fieldRefs.status.value = nextStatus;
   }
+
   saveTasks();
   render();
 }
