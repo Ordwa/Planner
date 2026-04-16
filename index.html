@@ -27,16 +27,7 @@
 
       <div class="workspace">
         <header class="command-topbar">
-          <label class="search-bar" for="search-input">
-            <span class="visually-hidden">Search tasks</span>
-            <input
-              id="search-input"
-              type="search"
-              placeholder="Search activities, owners, or details..."
-            />
-          </label>
-
-          <div class="command-topbar__actions">
+          <div class="command-topbar__left">
             <div class="filters-menu">
               <button
                 class="hamburger-button button button--ghost"
@@ -81,13 +72,56 @@
             </div>
 
             <button
-              class="button button--primary"
-              id="open-task-modal"
+              class="button button--ghost command-topbar__utility"
               type="button"
+              aria-label="Notifications"
             >
-              Add task
+              <svg
+                class="command-topbar__icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M15 17h5l-1.4-1.4A2 2 0 0 1 18 14.2V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5" />
+                <path d="M9.5 20a2.5 2.5 0 0 0 5 0" />
+              </svg>
+            </button>
+
+            <button
+              class="button button--ghost command-topbar__utility"
+              type="button"
+              aria-label="Notes"
+            >
+              <svg
+                class="command-topbar__icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M8 3h8l5 5v11a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
+                <path d="M16 3v5h5" />
+                <path d="M10 13h4" />
+                <path d="M10 17h4" />
+              </svg>
             </button>
           </div>
+
+          <label class="search-bar" for="search-input">
+            <span class="visually-hidden">Search tasks</span>
+            <input
+              id="search-input"
+              type="search"
+              placeholder="Search activities, owners, or details..."
+            />
+          </label>
         </header>
 
         <main class="workspace-main">
@@ -97,9 +131,13 @@
                 <p class="section-label">Board</p>
                 <h1 id="board-title">Activities</h1>
               </div>
-              <p class="board-panel__hint">
-                Click a card to edit it. Drag cards between buckets on desktop.
-              </p>
+              <button
+                class="button button--primary"
+                id="open-task-modal"
+                type="button"
+              >
+                New
+              </button>
             </div>
 
             <div class="kanban-board" id="kanban-board" aria-live="polite"></div>
@@ -120,7 +158,7 @@
         <div class="task-modal__header">
           <div>
             <p class="section-label">Task details</p>
-            <h2 id="task-modal-title">Add task</h2>
+            <h2 id="task-modal-title">New Activity</h2>
           </div>
 
           <button
@@ -196,6 +234,62 @@
               </select>
             </label>
           </div>
+
+          <section class="task-form__section" aria-labelledby="checklist-title">
+            <div class="task-form__section-header">
+              <div>
+                <h3 id="checklist-title">Task</h3>
+              </div>
+              <label class="task-form__toggle" for="show-checklist-on-card">
+                <span>Show in card</span>
+                <input id="show-checklist-on-card" type="checkbox" />
+              </label>
+            </div>
+
+            <div class="inline-entry">
+              <input
+                id="checklist-input"
+                type="text"
+                placeholder="Add Sub-activity"
+                maxlength="120"
+              />
+              <button
+                class="button button--ghost"
+                id="add-checklist-item"
+                type="button"
+              >
+                +
+              </button>
+            </div>
+
+            <div class="checklist-list" id="checklist-list"></div>
+          </section>
+
+          <section class="task-form__section" aria-labelledby="comments-title">
+            <div class="task-form__section-header">
+              <div>
+                <h3 id="comments-title">Updates</h3>
+              </div>
+            </div>
+
+            <div class="comment-entry">
+              <textarea
+                id="comment-input"
+                rows="3"
+                placeholder="Add an update or note for this activity"
+                maxlength="280"
+              ></textarea>
+              <button
+                class="button button--ghost"
+                id="add-comment"
+                type="button"
+              >
+                Add update
+              </button>
+            </div>
+
+            <div class="comments-list" id="comments-list"></div>
+          </section>
 
           <div class="task-form__actions">
             <button class="button button--primary" type="submit" id="submit-button">
