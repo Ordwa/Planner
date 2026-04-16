@@ -170,7 +170,7 @@ function resetForm() {
   fieldRefs.id.value = "";
   fieldRefs.priority.value = "medium";
   fieldRefs.status.value = "backlog";
-  submitButton.textContent = "Add activity";
+  submitButton.textContent = "Add task";
 }
 
 function render() {
@@ -185,7 +185,7 @@ function renderStats() {
   const overdueTasks = state.tasks.filter(isOverdue).length;
 
   const stats = [
-    { label: "Visible tasks", value: filteredTasks.length },
+    { label: "Tasks", value: filteredTasks.length },
     { label: "In progress", value: progressTasks },
     { label: "Completed", value: doneTasks },
     { label: "Overdue", value: overdueTasks },
@@ -231,7 +231,7 @@ function renderBoard() {
     if (!columnTasks.length) {
       const emptyState = document.createElement("p");
       emptyState.className = "kanban-column__empty";
-      emptyState.textContent = "No activities here yet.";
+      emptyState.textContent = "No tasks in this bucket yet.";
       listNode.appendChild(emptyState);
     }
 
@@ -254,6 +254,7 @@ function createTaskCard(task) {
   const actionsNode = fragment.querySelector(".task-card__actions");
 
   card.dataset.taskId = task.id;
+  card.classList.add(`task-card--${task.priority}`);
 
   priorityNode.textContent = `${task.priority} priority`;
   priorityNode.classList.add(`priority-${task.priority}`);
@@ -298,7 +299,7 @@ function buildTaskActions(task) {
 
   if (currentIndex > 0) {
     buttons.push(
-      createButton("Move left", "button button--ghost button--small", () => {
+      createButton("Previous", "button button--ghost button--small", () => {
         moveTask(task.id, COLUMN_CONFIG[currentIndex - 1].key);
       })
     );
@@ -306,7 +307,7 @@ function buildTaskActions(task) {
 
   if (currentIndex < COLUMN_CONFIG.length - 1) {
     buttons.push(
-      createButton("Move right", "button button--ghost button--small", () => {
+      createButton("Next", "button button--ghost button--small", () => {
         moveTask(task.id, COLUMN_CONFIG[currentIndex + 1].key);
       })
     );
@@ -352,7 +353,7 @@ function fillForm(task) {
   fieldRefs.dueDate.value = task.dueDate;
   fieldRefs.priority.value = task.priority;
   fieldRefs.status.value = task.status;
-  submitButton.textContent = "Update activity";
+  submitButton.textContent = "Update task";
   fieldRefs.title.focus();
 }
 

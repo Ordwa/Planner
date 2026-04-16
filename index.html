@@ -3,119 +3,84 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FlowBoard Planner</title>
+    <title>Flow Planner</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <div class="app-shell">
-      <header class="hero">
-        <div class="hero__copy">
-          <p class="eyebrow">Kanban Activity Planner</p>
-          <h1>Plan work clearly, move tasks fast, stay focused.</h1>
-          <p class="hero__text">
-            FlowBoard keeps activities visible across each stage so you can
-            organize priorities, track progress, and finish work with less
-            friction.
-          </p>
+    <div class="planner-app">
+      <aside class="sidebar" aria-label="Planner navigation">
+        <div class="sidebar__brand">
+          <div class="sidebar__logo">FP</div>
+          <div>
+            <p class="sidebar__kicker">Planner Workspace</p>
+            <h2>Flow Planner</h2>
+          </div>
         </div>
 
-        <div class="hero__stats" id="stats-panel" aria-label="Planner summary"></div>
-      </header>
+        <nav class="sidebar__nav">
+          <button class="sidebar__item is-active" type="button">Board</button>
+          <button class="sidebar__item" type="button">My Tasks</button>
+          <button class="sidebar__item" type="button">Reports</button>
+          <button class="sidebar__item" type="button">Schedule</button>
+        </nav>
 
-      <main class="layout">
-        <section class="panel composer-panel" aria-labelledby="composer-title">
-          <div class="panel__header">
-            <div>
-              <p class="panel__eyebrow">Activity</p>
-              <h2 id="composer-title">Add or update a task</h2>
-            </div>
-          </div>
-
-          <form id="task-form" class="task-form">
-            <input type="hidden" id="task-id" />
-
-            <label>
-              Title
-              <input
-                id="task-title"
-                name="title"
-                type="text"
-                placeholder="Prepare sprint planning"
-                maxlength="80"
-                required
-              />
-            </label>
-
-            <label>
-              Description
-              <textarea
-                id="task-description"
-                name="description"
-                rows="4"
-                placeholder="Outline the next work items and assign owners."
-                maxlength="220"
-              ></textarea>
-            </label>
-
-            <div class="task-form__grid">
-              <label>
-                Owner
-                <input
-                  id="task-owner"
-                  name="owner"
-                  type="text"
-                  placeholder="Team or person"
-                  maxlength="40"
-                />
-              </label>
-
-              <label>
-                Due date
-                <input id="task-due-date" name="dueDate" type="date" />
-              </label>
-
-              <label>
-                Priority
-                <select id="task-priority" name="priority">
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
-                  <option value="low">Low</option>
-                </select>
-              </label>
-
-              <label>
-                Status
-                <select id="task-status" name="status">
-                  <option value="backlog">Backlog</option>
-                  <option value="todo">To Do</option>
-                  <option value="progress">In Progress</option>
-                  <option value="done">Done</option>
-                </select>
-              </label>
-            </div>
-
-            <div class="task-form__actions">
-              <button class="button button--primary" type="submit" id="submit-button">
-                Add activity
-              </button>
-              <button class="button button--ghost" type="button" id="reset-button">
-                Clear form
-              </button>
-            </div>
-          </form>
+        <section class="sidebar__card">
+          <p class="section-label section-label--sidebar">Current plan</p>
+          <h3>Activity management</h3>
+          <p>
+            A focused Kanban board for tracking work from backlog to completion.
+          </p>
         </section>
 
-        <section class="panel filters-panel" aria-labelledby="filters-title">
-          <div class="panel__header">
-            <div>
-              <p class="panel__eyebrow">Filters</p>
-              <h2 id="filters-title">Focus the board</h2>
-            </div>
+        <section class="sidebar__card sidebar__card--muted">
+          <p class="section-label section-label--sidebar">Quick tips</p>
+          <ul class="sidebar__list">
+            <li>Add a task from the form panel.</li>
+            <li>Filter by search or priority.</li>
+            <li>Drag cards between buckets on desktop.</li>
+          </ul>
+        </section>
+      </aside>
+
+      <div class="workspace">
+        <header class="topbar">
+          <div class="topbar__main">
+            <p class="topbar__crumb">Plans / Team Operations</p>
+            <h1>Activity Planner</h1>
+            <p class="topbar__text">
+              Organize activities in buckets, keep priorities visible, and move
+              work steadily from backlog to done.
+            </p>
           </div>
 
-          <div class="filters">
-            <label>
-              Search
+          <div class="topbar__views" aria-label="Available views">
+            <span class="topbar__view is-active">Board</span>
+            <span class="topbar__view">Charts</span>
+            <span class="topbar__view">Schedule</span>
+          </div>
+        </header>
+
+        <section class="overview">
+          <div class="overview__summary">
+            <p class="section-label">Plan overview</p>
+            <h2>Board view</h2>
+            <p>
+              A clean Microsoft Planner-style layout adapted for a simple,
+              responsive task workflow.
+            </p>
+          </div>
+
+          <div
+            class="overview__stats"
+            id="stats-panel"
+            aria-label="Planner summary"
+          ></div>
+        </section>
+
+        <section class="command-bar" aria-labelledby="filters-title">
+          <div class="command-bar__group">
+            <label class="field field--search">
+              <span id="filters-title">Search</span>
               <input
                 id="search-input"
                 type="search"
@@ -123,8 +88,8 @@
               />
             </label>
 
-            <label>
-              Priority
+            <label class="field">
+              <span>Priority</span>
               <select id="priority-filter">
                 <option value="all">All priorities</option>
                 <option value="high">High</option>
@@ -134,36 +99,131 @@
             </label>
 
             <button class="button button--ghost" id="clear-filters" type="button">
-              Reset filters
+              Clear filters
             </button>
           </div>
-        </section>
 
-        <section class="board-section" aria-labelledby="board-title">
-          <div class="board-section__header">
-            <div>
-              <p class="panel__eyebrow">Board</p>
-              <h2 id="board-title">Kanban workflow</h2>
-            </div>
-            <p class="board-section__hint">
-              Drag cards between columns on desktop, or use the move buttons on
-              each task.
-            </p>
+          <div class="command-bar__group command-bar__group--secondary">
+            <span class="hint-chip">Drag tasks between buckets</span>
+            <span class="hint-chip">Use the form to edit selected work</span>
           </div>
-
-          <div class="kanban-board" id="kanban-board" aria-live="polite"></div>
         </section>
-      </main>
+
+        <main class="workspace-grid">
+          <section class="panel composer-panel" aria-labelledby="composer-title">
+            <div class="panel__header">
+              <div>
+                <p class="section-label">Task details</p>
+                <h2 id="composer-title">Add or update a task</h2>
+              </div>
+            </div>
+
+            <form id="task-form" class="task-form">
+              <input type="hidden" id="task-id" />
+
+              <label>
+                Title
+                <input
+                  id="task-title"
+                  name="title"
+                  type="text"
+                  placeholder="Prepare sprint planning"
+                  maxlength="80"
+                  required
+                />
+              </label>
+
+              <label>
+                Description
+                <textarea
+                  id="task-description"
+                  name="description"
+                  rows="4"
+                  placeholder="Outline the next work items and assign owners."
+                  maxlength="220"
+                ></textarea>
+              </label>
+
+              <div class="task-form__grid">
+                <label>
+                  Owner
+                  <input
+                    id="task-owner"
+                    name="owner"
+                    type="text"
+                    placeholder="Team or person"
+                    maxlength="40"
+                  />
+                </label>
+
+                <label>
+                  Due date
+                  <input id="task-due-date" name="dueDate" type="date" />
+                </label>
+
+                <label>
+                  Priority
+                  <select id="task-priority" name="priority">
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="low">Low</option>
+                  </select>
+                </label>
+
+                <label>
+                  Status
+                  <select id="task-status" name="status">
+                    <option value="backlog">Backlog</option>
+                    <option value="todo">To Do</option>
+                    <option value="progress">In Progress</option>
+                    <option value="done">Done</option>
+                  </select>
+                </label>
+              </div>
+
+              <div class="task-form__actions">
+                <button
+                  class="button button--primary"
+                  type="submit"
+                  id="submit-button"
+                >
+                  Add task
+                </button>
+                <button class="button button--ghost" type="button" id="reset-button">
+                  Clear form
+                </button>
+              </div>
+            </form>
+          </section>
+
+          <section class="board-panel" aria-labelledby="board-title">
+            <div class="board-panel__header">
+              <div>
+                <p class="section-label">Buckets</p>
+                <h2 id="board-title">Planner board</h2>
+              </div>
+              <p class="board-panel__hint">
+                Buckets stay horizontally scrollable on smaller screens.
+              </p>
+            </div>
+
+            <div class="kanban-board" id="kanban-board" aria-live="polite"></div>
+          </section>
+        </main>
+      </div>
     </div>
 
     <template id="column-template">
       <section class="kanban-column">
         <header class="kanban-column__header">
-          <div>
+          <div class="kanban-column__heading">
             <h3 class="kanban-column__title"></h3>
             <p class="kanban-column__subtitle"></p>
           </div>
-          <span class="kanban-column__count"></span>
+          <div class="kanban-column__meta">
+            <span class="kanban-column__count"></span>
+            <span class="kanban-column__menu" aria-hidden="true">•••</span>
+          </div>
         </header>
         <div class="kanban-column__list"></div>
       </section>
@@ -171,7 +231,7 @@
 
     <template id="task-template">
       <article class="task-card" draggable="true">
-        <div class="task-card__top">
+        <div class="task-card__header">
           <span class="task-card__priority"></span>
           <span class="task-card__date"></span>
         </div>
