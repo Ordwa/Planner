@@ -100,7 +100,7 @@ openTaskModalButton.addEventListener("click", () => openTaskModal());
 closeTaskModalButton.addEventListener("click", closeTaskModal);
 
 taskModal.addEventListener("click", (event) => {
-  if (event.target.matches("[data-close-modal='true']")) {
+  if (event.target.closest("[data-close-modal='true']")) {
     closeTaskModal();
   }
 });
