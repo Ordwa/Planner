@@ -68,11 +68,6 @@
                 </button>
 
               <div class="filters-popover" id="filters-panel" hidden>
-                <div class="filters-popover__header">
-                  <p class="section-label">Board filters</p>
-                  <h2>Refine the board</h2>
-                </div>
-
                 <label class="field">
                   <span>Priority</span>
                   <select id="priority-filter">
@@ -84,11 +79,11 @@
                 </label>
 
                 <button
-                  class="button button--ghost"
+                  class="button button--ghost button--tiny"
                   id="clear-filters"
                   type="button"
                 >
-                  Clear filters
+                  Reset
                 </button>
               </div>
             </div>
@@ -425,11 +420,26 @@
       <section class="kanban-column">
         <header class="kanban-column__header">
           <div class="kanban-column__heading">
+            <span class="kanban-column__count"></span>
             <h3 class="kanban-column__title"></h3>
-            <p class="kanban-column__subtitle"></p>
           </div>
           <div class="kanban-column__meta">
-            <span class="kanban-column__count"></span>
+            <div class="kanban-column__menu">
+              <button
+                class="button button--ghost button--tiny kanban-column__menu-toggle"
+                type="button"
+                aria-expanded="false"
+                aria-label="Column sort options"
+              >
+                ...
+              </button>
+              <div class="kanban-column__dropdown" hidden>
+                <button type="button" data-sort="newest">Newest first</button>
+                <button type="button" data-sort="oldest">Oldest first</button>
+                <button type="button" data-sort="dueDate">Due date</button>
+                <button type="button" data-sort="priority">Priority</button>
+              </div>
+            </div>
           </div>
         </header>
         <div class="kanban-column__list"></div>

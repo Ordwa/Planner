@@ -65,6 +65,9 @@ const state = {
     search: "",
     priority: "all",
   },
+  columnSorts: Object.fromEntries(COLUMN_CONFIG.map((column) => [column.key, "newest"])),
+  openColumnMenuKey: null,
+  openTaskMenuId: null,
   editingTaskId: null,
   modalChecklist: [],
   modalComments: [],
@@ -219,6 +222,14 @@ document.addEventListener("click", (event) => {
   if (!notificationsMenu.contains(event.target)) {
     setNotificationsOpen(false);
   }
+
+  if (!event.target.closest(".kanban-column__menu")) {
+    closeColumnMenu();
+  }
+
+  if (!event.target.closest(".task-card__menu")) {
+    closeTaskMenu();
+  }
 });
 
 document.addEventListener("keydown", (event) => {
@@ -226,6 +237,8 @@ document.addEventListener("keydown", (event) => {
     closeSidebar();
     setFiltersOpen(false);
     setNotificationsOpen(false);
+    closeColumnMenu();
+    closeTaskMenu();
     closeNotesDrawer();
 
     if (!taskModal.hidden) {
@@ -1068,17 +1081,26 @@ function resetForm() {
   renderModalCollections();
 }
 
-function openTaskModal(task) {
+function openTaskModal(task, options = {}) {
+  const { isClone = false } = options;
+
   closeSidebar();
   setNotesDrawerOpen(false);
   setFiltersOpen(false);
   setNotificationsOpen(false);
 
-  if (task) {
+  if (task && !isClone) {
     fillForm(task);
     taskModalTitle.textContent = "Edit Activity";
     submitButton.hidden = true;
     resetButton.hidden = true;
+  } else if (task && isClone) {
+    fillForm(task, { isClone: true });
+    taskModalTitle.textContent = "Clone Activity";
+    submitButton.hidden = false;
+    submitButton.textContent = "Create copy";
+    resetButton.hidden = false;
+    resetButton.textContent = "Cancel";
   } else {
     resetForm();
     taskModalTitle.textContent = "New Activity";
@@ -1248,22 +1270,41 @@ function renderBoard() {
     const fragment = columnTemplate.content.cloneNode(true);
     const columnNode = fragment.querySelector(".kanban-column");
     const titleNode = fragment.querySelector(".kanban-column__title");
-    const subtitleNode = fragment.querySelector(".kanban-column__subtitle");
     const countNode = fragment.querySelector(".kanban-column__count");
     const listNode = fragment.querySelector(".kanban-column__list");
+    const menuToggle = fragment.querySelector(".kanban-column__menu-toggle");
+    const dropdown = fragment.querySelector(".kanban-column__dropdown");
 
-    const columnTasks = filteredTasks
-      .filter((task) => task.status === column.key)
-      .sort((left, right) => right.createdAt - left.createdAt);
+    const columnTasks = sortColumnTasks(
+      filteredTasks.filter((task) => task.status === column.key),
+      state.columnSorts[column.key]
+    );
 
     columnNode.dataset.column = column.key;
     titleNode.textContent = column.title;
-    subtitleNode.textContent = column.subtitle;
     countNode.textContent = String(columnTasks.length);
+    menuToggle.setAttribute("aria-expanded", String(state.openColumnMenuKey === column.key));
+    dropdown.hidden = state.openColumnMenuKey !== column.key;
 
     columnNode.addEventListener("dragover", handleColumnDragOver);
     columnNode.addEventListener("dragleave", handleColumnDragLeave);
     columnNode.addEventListener("drop", handleColumnDrop);
+    menuToggle.addEventListener("click", (event) => {
+      event.stopPropagation();
+      state.openColumnMenuKey = state.openColumnMenuKey === column.key ? null : column.key;
+      renderBoard();
+    });
+    dropdown.addEventListener("click", (event) => {
+      const sortButton = event.target.closest("[data-sort]");
+
+      if (!sortButton) {
+        return;
+      }
+
+      state.columnSorts[column.key] = sortButton.dataset.sort;
+      state.openColumnMenuKey = null;
+      renderBoard();
+    });
 
     if (!columnTasks.length) {
       const emptyState = document.createElement("p");
@@ -1278,6 +1319,66 @@ function renderBoard() {
 
     board.appendChild(fragment);
   });
+}
+
+function sortColumnTasks(tasks, sortKey) {
+  const priorityRank = {
+    high: 0,
+    medium: 1,
+    low: 2,
+  };
+
+  return [...tasks].sort((left, right) => {
+    switch (sortKey) {
+      case "oldest":
+        return left.createdAt - right.createdAt;
+      case "dueDate":
+        return compareDueDates(left, right) || right.createdAt - left.createdAt;
+      case "priority":
+        return (
+          (priorityRank[left.priority] ?? Number.MAX_SAFE_INTEGER) -
+            (priorityRank[right.priority] ?? Number.MAX_SAFE_INTEGER) ||
+          right.createdAt - left.createdAt
+        );
+      case "newest":
+      default:
+        return right.createdAt - left.createdAt;
+    }
+  });
+}
+
+function compareDueDates(left, right) {
+  if (!left.dueDate && !right.dueDate) {
+    return 0;
+  }
+
+  if (!left.dueDate) {
+    return 1;
+  }
+
+  if (!right.dueDate) {
+    return -1;
+  }
+
+  return left.dueDate.localeCompare(right.dueDate);
+}
+
+function closeColumnMenu() {
+  if (state.openColumnMenuKey === null) {
+    return;
+  }
+
+  state.openColumnMenuKey = null;
+  renderBoard();
+}
+
+function closeTaskMenu() {
+  if (state.openTaskMenuId === null) {
+    return;
+  }
+
+  state.openTaskMenuId = null;
+  renderBoard();
 }
 
 function createTaskCard(task) {
@@ -1352,21 +1453,54 @@ function createTaskCard(task) {
     clearDropTargets();
   });
 
-  buildTaskActions(task).forEach((button) => actionsNode.appendChild(button));
+  actionsNode.appendChild(createTaskActionMenu(task));
 
   return fragment;
 }
 
-function buildTaskActions(task) {
-  const buttons = [];
+function createTaskActionMenu(task) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "task-card__menu";
+  wrapper.classList.toggle("is-open", state.openTaskMenuId === task.id);
 
-  buttons.push(
-    createIconButton("Delete task", "button button--danger button--small button--icon", () => {
-      deleteTask(task.id);
-    })
-  );
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "button button--ghost button--small task-card__menu-toggle";
+  toggle.textContent = "...";
+  toggle.setAttribute("aria-label", "Card actions");
+  toggle.setAttribute("aria-expanded", String(state.openTaskMenuId === task.id));
+  toggle.addEventListener("click", (event) => {
+    event.stopPropagation();
+    state.openTaskMenuId = state.openTaskMenuId === task.id ? null : task.id;
+    renderBoard();
+  });
 
-  return buttons;
+  const dropdown = document.createElement("div");
+  dropdown.className = "task-card__dropdown";
+  dropdown.hidden = state.openTaskMenuId !== task.id;
+
+  const cloneButton = document.createElement("button");
+  cloneButton.type = "button";
+  cloneButton.textContent = "Clone";
+  cloneButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    state.openTaskMenuId = null;
+    openTaskModal(task, { isClone: true });
+  });
+
+  const deleteButton = document.createElement("button");
+  deleteButton.type = "button";
+  deleteButton.className = "is-danger";
+  deleteButton.textContent = "Delete";
+  deleteButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    state.openTaskMenuId = null;
+    deleteTask(task.id);
+  });
+
+  dropdown.append(cloneButton, deleteButton);
+  wrapper.append(toggle, dropdown);
+  return wrapper;
 }
 
 function createButton(text, className, onClick) {
@@ -1527,9 +1661,11 @@ function toggleChecklistItem(taskId, checklistItemId) {
   render();
 }
 
-function fillForm(task) {
-  state.editingTaskId = task.id;
-  fieldRefs.id.value = task.id;
+function fillForm(task, options = {}) {
+  const { isClone = false } = options;
+
+  state.editingTaskId = isClone ? null : task.id;
+  fieldRefs.id.value = isClone ? "" : task.id;
   fieldRefs.title.value = task.title;
   fieldRefs.description.value = task.description;
   fieldRefs.owner.value = task.owner;
@@ -1537,8 +1673,8 @@ function fillForm(task) {
   fieldRefs.priority.value = task.priority;
   fieldRefs.status.value = task.status;
   showChecklistOnCardInput.checked = task.showChecklistOnCard;
-  state.modalChecklist = task.checklist.map(cloneChecklistItem);
-  state.modalComments = task.comments.map(cloneComment);
+  state.modalChecklist = task.checklist.map((item) => cloneChecklistItem(item, { assignNewId: isClone }));
+  state.modalComments = task.comments.map((comment) => cloneComment(comment, { assignNewId: isClone }));
   checklistInput.value = "";
   commentInput.value = "";
 }
@@ -1864,17 +2000,21 @@ function normalizeComment(comment) {
   };
 }
 
-function cloneChecklistItem(item) {
+function cloneChecklistItem(item, options = {}) {
+  const { assignNewId = false } = options;
+
   return {
-    id: item.id,
+    id: assignNewId ? generateId() : item.id,
     text: item.text,
     done: item.done,
   };
 }
 
-function cloneComment(comment) {
+function cloneComment(comment, options = {}) {
+  const { assignNewId = false } = options;
+
   return {
-    id: comment.id,
+    id: assignNewId ? generateId() : comment.id,
     text: comment.text,
     createdAt: comment.createdAt,
   };
