@@ -1,5 +1,6 @@
 const STORAGE_KEY = "flowboard-planner-state";
 const NOTES_STORAGE_KEY = "flowboard-planner-notes";
+const SIDEBAR_BREAKPOINT = 1600;
 
 const COLUMN_CONFIG = [
   {
@@ -79,6 +80,9 @@ const filtersToggle = document.querySelector("#filters-toggle");
 const filtersPanel = document.querySelector("#filters-panel");
 const filtersMenu = document.querySelector(".filters-menu");
 const notificationsMenu = document.querySelector(".notifications-menu");
+const sidebar = document.querySelector(".sidebar");
+const sidebarToggle = document.querySelector("#sidebar-toggle");
+const sidebarBackdrop = document.querySelector("#sidebar-backdrop");
 const openTaskModalButton = document.querySelector("#open-task-modal");
 const closeTaskModalButton = document.querySelector("#close-task-modal");
 const notificationsButton = document.querySelector("#notifications-button");
@@ -88,7 +92,8 @@ const notificationsList = document.querySelector("#notifications-list");
 const notesButton = document.querySelector("#notes-button");
 const notesDrawer = document.querySelector("#notes-drawer");
 const closeNotesDrawerButton = document.querySelector("#close-notes-drawer");
-const notesTextarea = document.querySelector("#notes-textarea");
+const notesToolbar = document.querySelector(".notes-toolbar");
+const notesEditor = document.querySelector("#notes-editor");
 const taskModal = document.querySelector("#task-modal");
 const taskModalTitle = document.querySelector("#task-modal-title");
 const checklistInput = document.querySelector("#checklist-input");
@@ -120,13 +125,23 @@ openTaskModalButton.addEventListener("click", () => openTaskModal());
 closeTaskModalButton.addEventListener("click", closeTaskModal);
 addChecklistItemButton.addEventListener("click", addChecklistItem);
 addCommentButton.addEventListener("click", addComment);
+sidebarToggle.addEventListener("click", () => {
+  setSidebarOpen(!document.body.classList.contains("sidebar-open"));
+});
+sidebarBackdrop.addEventListener("click", closeSidebar);
 notesButton.addEventListener("click", () => {
+  closeSidebar();
   setFiltersOpen(false);
   setNotificationsOpen(false);
   setNotesDrawerOpen(notesDrawer.hidden);
 });
 closeNotesDrawerButton.addEventListener("click", closeNotesDrawer);
-notesTextarea.addEventListener("input", handleNotesInput);
+notesEditor.addEventListener("input", handleNotesInput);
+notesEditor.addEventListener("click", handleNotesEditorClick);
+notesEditor.addEventListener("change", handleNotesEditorChange);
+notesEditor.addEventListener("keydown", handleNotesEditorKeydown);
+notesToolbar.addEventListener("click", handleNotesToolbarClick);
+notesToolbar.addEventListener("mousedown", handleNotesToolbarMouseDown);
 
 [fieldRefs.title, fieldRefs.description, fieldRefs.owner, fieldRefs.dueDate].forEach((field) => {
   field.addEventListener("input", autoSaveEditingTask);
@@ -177,18 +192,21 @@ clearFiltersButton.addEventListener("click", () => {
   state.filters.priority = "all";
   searchInput.value = "";
   priorityFilter.value = "all";
+  closeSidebar();
   setFiltersOpen(false);
   render();
 });
 
 filtersToggle.addEventListener("click", (event) => {
   event.stopPropagation();
+  closeSidebar();
   setNotificationsOpen(false);
   setFiltersOpen(filtersPanel.hidden);
 });
 
 notificationsButton.addEventListener("click", (event) => {
   event.stopPropagation();
+  closeSidebar();
   setFiltersOpen(false);
   setNotificationsOpen(notificationsPanel.hidden);
 });
@@ -205,6 +223,7 @@ document.addEventListener("click", (event) => {
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
+    closeSidebar();
     setFiltersOpen(false);
     setNotificationsOpen(false);
     closeNotesDrawer();
@@ -215,7 +234,16 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-notesTextarea.value = state.notes;
+window.addEventListener("resize", () => {
+  positionTopbarPopover(filtersPanel, filtersToggle);
+  positionTopbarPopover(notificationsPanel, notificationsButton);
+
+  if (window.innerWidth > SIDEBAR_BREAKPOINT) {
+    closeSidebar();
+  }
+});
+
+renderNotesEditor();
 render();
 
 function loadTasks() {
@@ -244,24 +272,725 @@ function saveTasks() {
 
 function loadNotes() {
   try {
-    return localStorage.getItem(NOTES_STORAGE_KEY) ?? "";
+    const stored = localStorage.getItem(NOTES_STORAGE_KEY);
+
+    if (!stored) {
+      return createEmptyNotesState();
+    }
+
+    const parsed = JSON.parse(stored);
+    return normalizeNotes(parsed);
   } catch (error) {
+    const legacyValue = localStorage.getItem(NOTES_STORAGE_KEY) ?? "";
+
+    if (legacyValue) {
+      return normalizeNotes({
+        title: "",
+        content: plainTextToHtml(legacyValue),
+        updatedAt: Date.now(),
+      });
+    }
+
     console.error("Unable to read notes state:", error);
-    return "";
+    return createEmptyNotesState();
   }
 }
 
 function saveNotes() {
   try {
-    localStorage.setItem(NOTES_STORAGE_KEY, state.notes);
+    localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(state.notes));
   } catch (error) {
     console.error("Unable to save notes state:", error);
   }
 }
 
 function handleNotesInput() {
-  state.notes = notesTextarea.value;
+  state.notes = {
+    ...state.notes,
+    content: sanitizeNotesHtml(notesEditor.innerHTML),
+    updatedAt: Date.now(),
+  };
   saveNotes();
+}
+
+function handleNotesEditorChange(event) {
+  const checkbox = event.target.closest(".notes-checklist__checkbox");
+
+  if (!checkbox) {
+    return;
+  }
+
+  const checklistItem = checkbox.closest(".notes-checklist-item");
+
+  if (!checklistItem) {
+    return;
+  }
+
+  checklistItem.classList.toggle("is-checked", checkbox.checked);
+  syncNotesChecklistItem(checklistItem);
+  handleNotesInput();
+}
+
+function handleNotesEditorClick(event) {
+  const marker = event.target.closest(".notes-checklist__marker");
+
+  if (!marker) {
+    return;
+  }
+
+  event.preventDefault();
+  const checklistItem = marker.closest(".notes-checklist-item");
+
+  if (!checklistItem) {
+    return;
+  }
+
+  toggleNotesChecklistItemState(checklistItem);
+  handleNotesInput();
+  placeCaretAtEnd(checklistItem.querySelector(".notes-checklist__text"));
+}
+
+function handleNotesEditorKeydown(event) {
+  const selection = window.getSelection();
+
+  if (!selection?.isCollapsed) {
+    return;
+  }
+
+  const checklistItem = findNearestChecklistItem(selection.anchorNode);
+
+  if (!checklistItem) {
+    return;
+  }
+
+  const textNode = checklistItem.querySelector(".notes-checklist__text");
+
+  if (!textNode || !isCaretAtStartOfNode(selection, textNode)) {
+    return;
+  }
+
+  if (event.key === "Backspace") {
+    event.preventDefault();
+    replaceNotesChecklistItem(checklistItem);
+    handleNotesInput();
+    return;
+  }
+
+  if (event.key === "ArrowLeft") {
+    event.preventDefault();
+  }
+}
+
+function handleNotesToolbarMouseDown(event) {
+  if (event.target.closest("[data-note-command]")) {
+    event.preventDefault();
+  }
+}
+
+function handleNotesToolbarClick(event) {
+  const button = event.target.closest("[data-note-command]");
+
+  if (!button) {
+    return;
+  }
+
+  const { noteCommand } = button.dataset;
+  focusNotesEditor();
+
+  switch (noteCommand) {
+    case "bold":
+      document.execCommand("bold");
+      break;
+    case "italic":
+      document.execCommand("italic");
+      break;
+    case "underline":
+      document.execCommand("underline");
+      break;
+    case "bulletList":
+      toggleNotesList("UL");
+      break;
+    case "numberList":
+      toggleNotesList("OL");
+      break;
+    case "heading":
+      toggleNotesBlockTag("H2");
+      break;
+    case "quote":
+      toggleNotesBlockTag("BLOCKQUOTE");
+      break;
+    case "checklist":
+      toggleNotesChecklist();
+      break;
+    default:
+      return;
+  }
+
+  handleNotesInput();
+}
+
+function renderNotesEditor() {
+  notesEditor.innerHTML = state.notes.content || "";
+  notesEditor
+    .querySelectorAll(".notes-checklist-item")
+    .forEach((checklistItem) => syncNotesChecklistItem(checklistItem));
+}
+
+function focusNotesEditor() {
+  notesEditor.focus();
+}
+
+function toggleNotesChecklist() {
+  const selection = window.getSelection();
+  const checklistItem = findNearestChecklistItem(selection?.anchorNode);
+  const listItem = findNearestListItem(selection?.anchorNode);
+
+  if (checklistItem) {
+    replaceNotesChecklistItem(checklistItem);
+    return;
+  }
+
+  if (listItem) {
+    replaceNotesListItemWithChecklist(listItem);
+    return;
+  }
+
+  const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+
+  if (range && !range.collapsed) {
+    const extracted = range.extractContents();
+    const wrapper = document.createElement("div");
+    wrapper.appendChild(extracted);
+    const { fragment, lastItem } = buildChecklistFragmentFromHtml(wrapper.innerHTML);
+    range.insertNode(fragment);
+
+    if (lastItem) {
+      placeCaretAtEnd(lastItem.querySelector(".notes-checklist__text"));
+    }
+
+    return;
+  }
+
+  const currentBlock = selection?.anchorNode ? findNearestBlockElement(selection.anchorNode) : null;
+
+  if (currentBlock && currentBlock !== notesEditor && currentBlock.tagName !== "LI") {
+    replaceNotesBlockWithChecklist(currentBlock);
+    return;
+  }
+
+  document.execCommand(
+    "insertHTML",
+    false,
+    '<div class="notes-checklist-item"><span class="notes-checklist__marker" contenteditable="false" aria-hidden="true"></span><span class="notes-checklist__text">\u200B</span></div>'
+  );
+}
+
+function createEmptyNotesState() {
+  return {
+    content: "",
+    updatedAt: null,
+  };
+}
+
+function normalizeNotes(notes) {
+  return {
+    content: sanitizeNotesHtml(String(notes?.content ?? "")),
+    updatedAt: Number.isFinite(notes?.updatedAt) ? notes.updatedAt : null,
+  };
+}
+
+function toggleNotesBlockTag(tagName) {
+  const selection = window.getSelection();
+  const anchorNode = selection?.anchorNode;
+  const checklistItem = findNearestChecklistItem(anchorNode);
+  const listItem = findNearestListItem(anchorNode);
+  const currentBlock = anchorNode instanceof Node ? findNearestBlockElement(anchorNode) : null;
+
+  if (checklistItem) {
+    replaceNotesChecklistItemWithBlock(checklistItem, tagName);
+    return;
+  }
+
+  if (listItem) {
+    const currentList = listItem.closest("ul, ol");
+    if (currentList && currentList.tagName === tagName) {
+      replaceNotesListItemWithBlock(listItem, "P");
+      return;
+    }
+
+    replaceNotesListItemWithBlock(listItem, tagName);
+    return;
+  }
+
+  if (currentBlock?.tagName === tagName) {
+    replaceNotesBlockElement(currentBlock, "P");
+    return;
+  }
+
+  if (currentBlock && currentBlock !== notesEditor && currentBlock.tagName !== "LI") {
+    replaceNotesBlockElement(currentBlock, tagName);
+    return;
+  }
+
+  document.execCommand("formatBlock", false, `<${tagName.toLowerCase()}>`);
+}
+
+function toggleNotesList(listTagName) {
+  const selection = window.getSelection();
+  const anchorNode = selection?.anchorNode;
+  const checklistItem = findNearestChecklistItem(anchorNode);
+  const listItem = findNearestListItem(anchorNode);
+  const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+
+  if (checklistItem) {
+    replaceNotesChecklistItemWithList(checklistItem, listTagName);
+    return;
+  }
+
+  if (listItem) {
+    const currentList = listItem.closest("ul, ol");
+
+    if (currentList?.tagName === listTagName) {
+      replaceNotesListItemWithBlock(listItem, "P");
+      return;
+    }
+
+    replaceNotesListItemWithList(listItem, listTagName);
+    return;
+  }
+
+  if (range && !range.collapsed) {
+    const extracted = range.extractContents();
+    const wrapper = document.createElement("div");
+    wrapper.appendChild(extracted);
+    const { fragment, lastItem } = buildNotesListFragmentFromHtml(wrapper.innerHTML, listTagName);
+    range.insertNode(fragment);
+
+    if (lastItem) {
+      placeCaretAtEnd(lastItem);
+    }
+
+    return;
+  }
+
+  const currentBlock = anchorNode instanceof Node ? findNearestBlockElement(anchorNode) : null;
+
+  if (currentBlock && currentBlock !== notesEditor) {
+    if (currentBlock.tagName === listTagName) {
+      replaceNotesBlockElement(currentBlock, "P");
+      return;
+    }
+
+    replaceNotesBlockWithList(currentBlock, listTagName);
+    return;
+  }
+
+  const list = createNotesListElement(listTagName, ["<br>"]);
+  notesEditor.appendChild(list);
+  const item = list.querySelector("li");
+  if (item) {
+    placeCaretAtEnd(item);
+  }
+}
+
+function findNearestBlockElement(node) {
+  let current = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+
+  while (current && current !== notesEditor) {
+    if (["P", "H2", "H3", "BLOCKQUOTE", "LI", "DIV"].includes(current.tagName)) {
+      return current;
+    }
+
+    current = current.parentElement;
+  }
+
+  return null;
+}
+
+function findNearestChecklistItem(node) {
+  const current = node instanceof Element ? node : node?.parentElement;
+  return current?.closest(".notes-checklist-item") ?? null;
+}
+
+function findNearestListItem(node) {
+  const current = node instanceof Element ? node : node?.parentElement;
+  return current?.closest("li") ?? null;
+}
+
+function sanitizeNotesHtml(html) {
+  const template = document.createElement("template");
+  template.innerHTML = html;
+
+  const allowedTags = new Set(["P", "BR", "STRONG", "B", "EM", "I", "U", "UL", "OL", "LI", "BLOCKQUOTE", "H2", "H3", "DIV", "SPAN", "INPUT"]);
+
+  const cleanNode = (node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      return document.createTextNode(node.textContent ?? "");
+    }
+
+    if (node.nodeType !== Node.ELEMENT_NODE) {
+      return document.createDocumentFragment();
+    }
+
+    if (!allowedTags.has(node.tagName)) {
+      const fragment = document.createDocumentFragment();
+      Array.from(node.childNodes).forEach((child) => {
+        fragment.appendChild(cleanNode(child));
+      });
+      return fragment;
+    }
+
+    const element = document.createElement(node.tagName.toLowerCase());
+
+    if (node.tagName === "DIV" && node.classList.contains("notes-checklist-item")) {
+      element.className = "notes-checklist-item";
+
+      if (
+        node.classList.contains("is-checked") ||
+        node.dataset.checked === "true" ||
+        node.querySelector(".notes-checklist__checkbox[checked]") ||
+        node.querySelector(".notes-checklist__checkbox:checked")
+      ) {
+        element.classList.add("is-checked");
+      }
+    }
+
+    if (node.tagName === "SPAN" && node.classList.contains("notes-checklist__text")) {
+      element.className = "notes-checklist__text";
+    }
+
+    if (node.tagName === "SPAN" && node.classList.contains("notes-checklist__marker")) {
+      element.className = "notes-checklist__marker";
+      element.setAttribute("contenteditable", "false");
+      element.setAttribute("aria-hidden", "true");
+    }
+
+    if (node.tagName === "INPUT") {
+      element.className = "notes-checklist__marker";
+      element.setAttribute("contenteditable", "false");
+      element.setAttribute("aria-hidden", "true");
+      return element;
+    }
+
+    Array.from(node.childNodes).forEach((child) => {
+      element.appendChild(cleanNode(child));
+    });
+
+    if (node.tagName === "DIV" && element.classList.contains("notes-checklist-item")) {
+      if (!element.querySelector(".notes-checklist__marker")) {
+        const marker = document.createElement("span");
+        marker.className = "notes-checklist__marker";
+        marker.setAttribute("contenteditable", "false");
+        marker.setAttribute("aria-hidden", "true");
+        element.prepend(marker);
+      }
+    }
+
+    return element;
+  };
+
+  const fragment = document.createDocumentFragment();
+  Array.from(template.content.childNodes).forEach((child) => {
+    fragment.appendChild(cleanNode(child));
+  });
+
+  const wrapper = document.createElement("div");
+  wrapper.appendChild(fragment);
+  return wrapper.innerHTML.trim();
+}
+
+function plainTextToHtml(text) {
+  return text
+    .split(/\n{2,}/)
+    .map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br>")}</p>`)
+    .join("");
+}
+
+function escapeHtml(text) {
+  return text
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function setSidebarOpen(isOpen) {
+  document.body.classList.toggle("sidebar-open", isOpen);
+  sidebarToggle.setAttribute("aria-expanded", String(isOpen));
+  sidebar.setAttribute("aria-hidden", String(!isOpen && window.innerWidth <= SIDEBAR_BREAKPOINT));
+  sidebarBackdrop.hidden = !isOpen;
+}
+
+function closeSidebar() {
+  if (!document.body.classList.contains("sidebar-open")) {
+    return;
+  }
+
+  setSidebarOpen(false);
+}
+
+function replaceNotesBlockElement(element, nextTagName) {
+  const replacement = document.createElement(nextTagName.toLowerCase());
+  replacement.innerHTML = element.innerHTML || "<br>";
+  element.replaceWith(replacement);
+  placeCaretAtEnd(replacement);
+}
+
+function replaceNotesBlockWithChecklist(element) {
+  const checklistItem = createNotesChecklistItemElement(element.innerHTML || "<br>");
+  element.replaceWith(checklistItem);
+  placeCaretAtEnd(checklistItem.querySelector(".notes-checklist__text"));
+}
+
+function replaceNotesBlockWithList(element, listTagName) {
+  const list = createNotesListElement(listTagName, [element.innerHTML || "<br>"]);
+  element.replaceWith(list);
+  const item = list.querySelector("li");
+  if (item) {
+    placeCaretAtEnd(item);
+  }
+}
+
+function replaceNotesChecklistItem(checklistItem) {
+  const replacement = document.createElement("p");
+  const text = checklistItem.querySelector(".notes-checklist__text");
+  replacement.innerHTML = text?.innerHTML?.trim() || "<br>";
+  checklistItem.replaceWith(replacement);
+  placeCaretAtStart(replacement);
+}
+
+function replaceNotesChecklistItemWithBlock(checklistItem, tagName) {
+  const replacement = document.createElement(tagName.toLowerCase());
+  const text = checklistItem.querySelector(".notes-checklist__text");
+  replacement.innerHTML = text?.innerHTML?.trim() || "<br>";
+  checklistItem.replaceWith(replacement);
+  placeCaretAtEnd(replacement);
+}
+
+function replaceNotesChecklistItemWithList(checklistItem, listTagName) {
+  const text = checklistItem.querySelector(".notes-checklist__text");
+  const list = createNotesListElement(listTagName, [text?.innerHTML?.trim() || "<br>"]);
+  checklistItem.replaceWith(list);
+  const item = list.querySelector("li");
+  if (item) {
+    placeCaretAtEnd(item);
+  }
+}
+
+function replaceNotesListItemWithChecklist(listItem) {
+  const checklistItem = createNotesChecklistItemElement(listItem.innerHTML || "<br>");
+  replaceNotesListItemWithNode(listItem, checklistItem);
+  placeCaretAtEnd(checklistItem.querySelector(".notes-checklist__text"));
+}
+
+function replaceNotesListItemWithBlock(listItem, tagName) {
+  const replacement = document.createElement(tagName.toLowerCase());
+  replacement.innerHTML = listItem.innerHTML || "<br>";
+  replaceNotesListItemWithNode(listItem, replacement);
+  placeCaretAtEnd(replacement);
+}
+
+function replaceNotesListItemWithList(listItem, listTagName) {
+  const list = createNotesListElement(listTagName, [listItem.innerHTML || "<br>"]);
+  replaceNotesListItemWithNode(listItem, list);
+  const item = list.querySelector("li");
+  if (item) {
+    placeCaretAtEnd(item);
+  }
+}
+
+function replaceNotesListItemWithNode(listItem, replacement) {
+  const list = listItem.parentElement;
+  const parent = list?.parentNode;
+
+  if (!list || !parent) {
+    return;
+  }
+
+  const items = Array.from(list.children);
+  const index = items.indexOf(listItem);
+  const beforeItems = items.slice(0, index);
+  const afterItems = items.slice(index + 1);
+
+  if (beforeItems.length) {
+    const beforeList = document.createElement(list.tagName.toLowerCase());
+    beforeItems.forEach((item) => beforeList.appendChild(item));
+    parent.insertBefore(beforeList, list);
+  }
+
+  parent.insertBefore(replacement, list);
+
+  if (afterItems.length) {
+    const afterList = document.createElement(list.tagName.toLowerCase());
+    afterItems.forEach((item) => afterList.appendChild(item));
+    parent.insertBefore(afterList, list);
+  }
+
+  list.remove();
+}
+
+function placeCaretAtEnd(element) {
+  const selection = window.getSelection();
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  range.collapse(false);
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+}
+
+function placeCaretAtStart(element) {
+  const selection = window.getSelection();
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  range.collapse(true);
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+}
+
+function isCaretAtStartOfNode(selection, element) {
+  const range = selection.getRangeAt(0).cloneRange();
+  const startRange = document.createRange();
+  startRange.selectNodeContents(element);
+  startRange.setEnd(range.startContainer, range.startOffset);
+  return startRange.toString().length === 0;
+}
+
+function syncNotesChecklistItem(checklistItem) {
+  if (!checklistItem.querySelector(".notes-checklist__marker")) {
+    const marker = document.createElement("span");
+    marker.className = "notes-checklist__marker";
+    marker.setAttribute("contenteditable", "false");
+    marker.setAttribute("aria-hidden", "true");
+    checklistItem.prepend(marker);
+  }
+}
+
+function buildChecklistFragmentFromHtml(html) {
+  const lines = extractNotesLinesFromHtml(html);
+  const template = document.createElement("template");
+  const fragment = document.createDocumentFragment();
+  let lastItem = null;
+
+  const addItem = (contentHtml) => {
+    const item = createNotesChecklistItemElement(contentHtml);
+    fragment.appendChild(item);
+    lastItem = item;
+  };
+
+  if (!lines.length) {
+    addItem("<br>");
+    return { fragment, lastItem };
+  }
+
+  lines.forEach((line) => addItem(line));
+
+  return { fragment, lastItem };
+}
+
+function buildNotesListFragmentFromHtml(html, listTagName) {
+  const lines = extractNotesLinesFromHtml(html);
+  const list = createNotesListElement(listTagName, lines.length ? lines : ["<br>"]);
+  return {
+    fragment: list,
+    lastItem: list.lastElementChild,
+  };
+}
+
+function extractNotesLinesFromHtml(html) {
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  const lines = [];
+
+  const addLine = (contentHtml) => {
+    const normalized = contentHtml?.trim();
+    lines.push(normalized || "<br>");
+  };
+
+  const addTextLines = (text) => {
+    text
+      .split(/\n+/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .forEach((line) => addLine(escapeHtml(line)));
+  };
+
+  const walk = (node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (node.textContent?.trim()) {
+        addTextLines(node.textContent);
+      }
+      return;
+    }
+
+    if (!(node instanceof HTMLElement)) {
+      return;
+    }
+
+    if (node.classList.contains("notes-checklist-item")) {
+      addLine(node.querySelector(".notes-checklist__text")?.innerHTML || "<br>");
+      return;
+    }
+
+    if (node.matches("ul, ol")) {
+      Array.from(node.children).forEach((child) => {
+        if (child instanceof HTMLElement && child.tagName === "LI") {
+          addLine(child.innerHTML || "<br>");
+        }
+      });
+      return;
+    }
+
+    if (["P", "DIV", "H2", "H3", "BLOCKQUOTE", "LI"].includes(node.tagName)) {
+      addLine(node.innerHTML || "<br>");
+      return;
+    }
+
+    if (node.children.length) {
+      Array.from(node.childNodes).forEach(walk);
+      return;
+    }
+
+    addLine(node.outerHTML);
+  };
+
+  Array.from(template.content.childNodes).forEach(walk);
+
+  return lines;
+}
+
+function createNotesChecklistItemElement(contentHtml) {
+  const item = document.createElement("div");
+  item.className = "notes-checklist-item";
+
+  const checkbox = document.createElement("span");
+  checkbox.className = "notes-checklist__marker";
+  checkbox.setAttribute("contenteditable", "false");
+  checkbox.setAttribute("aria-hidden", "true");
+
+  const text = document.createElement("span");
+  text.className = "notes-checklist__text";
+  text.innerHTML = contentHtml || "<br>";
+
+  item.append(checkbox, text);
+  return item;
+}
+
+function toggleNotesChecklistItemState(checklistItem) {
+  checklistItem.classList.toggle("is-checked");
+  syncNotesChecklistItem(checklistItem);
+}
+
+function createNotesListElement(listTagName, itemsHtml) {
+  const list = document.createElement(listTagName.toLowerCase());
+
+  itemsHtml.forEach((contentHtml) => {
+    const item = document.createElement("li");
+    item.innerHTML = contentHtml || "<br>";
+    list.appendChild(item);
+  });
+
+  return list;
 }
 
 function buildTaskFromForm(fallbackTask) {
@@ -335,10 +1064,12 @@ function resetForm() {
   showChecklistOnCardInput.checked = false;
   checklistInput.value = "";
   commentInput.value = "";
+  resetButton.hidden = false;
   renderModalCollections();
 }
 
 function openTaskModal(task) {
+  closeSidebar();
   setNotesDrawerOpen(false);
   setFiltersOpen(false);
   setNotificationsOpen(false);
@@ -347,12 +1078,13 @@ function openTaskModal(task) {
     fillForm(task);
     taskModalTitle.textContent = "Edit Activity";
     submitButton.hidden = true;
-    resetButton.textContent = "Close";
+    resetButton.hidden = true;
   } else {
     resetForm();
     taskModalTitle.textContent = "New Activity";
     submitButton.hidden = false;
     submitButton.textContent = "Create task";
+    resetButton.hidden = false;
     resetButton.textContent = "Cancel";
   }
 
@@ -371,20 +1103,33 @@ function closeTaskModal() {
 function setFiltersOpen(isOpen) {
   filtersPanel.hidden = !isOpen;
   filtersToggle.setAttribute("aria-expanded", String(isOpen));
+
+  if (isOpen) {
+    positionTopbarPopover(filtersPanel, filtersToggle);
+  }
 }
 
 function setNotificationsOpen(isOpen) {
   notificationsPanel.hidden = !isOpen;
   notificationsButton.setAttribute("aria-expanded", String(isOpen));
+
+  if (isOpen) {
+    positionTopbarPopover(notificationsPanel, notificationsButton);
+  }
 }
 
 function setNotesDrawerOpen(isOpen) {
+  if (isOpen) {
+    closeSidebar();
+  }
+
   notesDrawer.hidden = !isOpen;
   notesButton.setAttribute("aria-expanded", String(isOpen));
   syncOverlayState();
 
   if (isOpen) {
-    notesTextarea.focus();
+    renderNotesEditor();
+    focusNotesEditor();
   }
 }
 
@@ -398,6 +1143,34 @@ function closeNotesDrawer() {
 
 function syncOverlayState() {
   document.body.classList.toggle("modal-open", !taskModal.hidden || !notesDrawer.hidden);
+}
+
+function positionTopbarPopover(panel, trigger) {
+  if (!panel || panel.hidden || !trigger) {
+    return;
+  }
+
+  const viewportPadding = 12;
+  const gap = 10;
+  const triggerRect = trigger.getBoundingClientRect();
+  const panelWidth = panel.offsetWidth;
+  const panelHeight = panel.offsetHeight;
+  const maxLeft = window.innerWidth - panelWidth - viewportPadding;
+  const maxTop = window.innerHeight - panelHeight - viewportPadding;
+
+  const nextLeft = Math.min(
+    Math.max(viewportPadding, triggerRect.right - panelWidth),
+    Math.max(viewportPadding, maxLeft)
+  );
+
+  let nextTop = triggerRect.bottom + gap;
+
+  if (nextTop > maxTop) {
+    nextTop = Math.max(viewportPadding, triggerRect.top - panelHeight - gap);
+  }
+
+  panel.style.left = `${nextLeft}px`;
+  panel.style.top = `${Math.max(viewportPadding, nextTop)}px`;
 }
 
 function render() {
@@ -510,7 +1283,7 @@ function renderBoard() {
 function createTaskCard(task) {
   const fragment = taskTemplate.content.cloneNode(true);
   const card = fragment.querySelector(".task-card");
-  const priorityNode = fragment.querySelector(".task-card__priority");
+  const headerNode = fragment.querySelector(".task-card__header");
   const dateNode = fragment.querySelector(".task-card__date");
   const titleNode = fragment.querySelector(".task-card__title");
   const descriptionNode = fragment.querySelector(".task-card__description");
@@ -519,9 +1292,6 @@ function createTaskCard(task) {
 
   card.dataset.taskId = task.id;
   card.classList.add(`task-card--${task.priority}`);
-
-  priorityNode.textContent = `${task.priority} priority`;
-  priorityNode.classList.add(`priority-${task.priority}`);
 
   titleNode.textContent = task.title;
   descriptionNode.textContent = getCardPreviewText(task);
@@ -540,23 +1310,20 @@ function createTaskCard(task) {
     dateNode.classList.toggle("is-overdue", overdue);
   } else {
     dateNode.remove();
+    headerNode.remove();
   }
 
   if (task.owner) {
     metaNode.appendChild(createPill(task.owner));
   }
 
-  metaNode.appendChild(
-    createPill(COLUMN_CONFIG.find((column) => column.key === task.status)?.title ?? task.status)
-  );
-
-  if (task.checklist.length) {
-    metaNode.appendChild(createPill(getChecklistSummary(task.checklist)));
+  if (getOpenChecklistCount(task.checklist) > 0) {
+    metaNode.appendChild(createIconPill(createCheckedIcon(), getChecklistSummary(task.checklist)));
   }
 
   if (task.comments.length) {
     const commentCount = task.comments.length;
-    metaNode.appendChild(createPill(`${commentCount} comment${commentCount === 1 ? "" : "s"}`));
+    metaNode.appendChild(createIconPill(createChatIcon(), String(commentCount)));
   }
 
   card.addEventListener("click", (event) => {
@@ -642,6 +1409,46 @@ function createPill(text) {
   return pill;
 }
 
+function createIconPill(icon, text) {
+  const pill = document.createElement("span");
+  pill.className = "task-card__pill";
+  pill.append(icon, document.createTextNode(text));
+  return pill;
+}
+
+function createCheckedIcon() {
+  const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  icon.setAttribute("viewBox", "0 0 24 24");
+  icon.setAttribute("fill", "none");
+  icon.setAttribute("stroke", "currentColor");
+  icon.setAttribute("stroke-width", "2");
+  icon.setAttribute("stroke-linecap", "round");
+  icon.setAttribute("stroke-linejoin", "round");
+  icon.setAttribute("aria-hidden", "true");
+  icon.setAttribute("class", "task-card__pill-icon");
+  icon.innerHTML = `
+    <rect x="3" y="3" width="18" height="18" rx="4"></rect>
+    <path d="m8 12 3 3 5-6"></path>
+  `;
+  return icon;
+}
+
+function createChatIcon() {
+  const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  icon.setAttribute("viewBox", "0 0 24 24");
+  icon.setAttribute("fill", "none");
+  icon.setAttribute("stroke", "currentColor");
+  icon.setAttribute("stroke-width", "2");
+  icon.setAttribute("stroke-linecap", "round");
+  icon.setAttribute("stroke-linejoin", "round");
+  icon.setAttribute("aria-hidden", "true");
+  icon.setAttribute("class", "task-card__pill-icon");
+  icon.innerHTML = `
+    <path d="M21 12a8.5 8.5 0 0 1-8.5 8.5H7l-4 2 1.5-4A8.5 8.5 0 1 1 21 12Z"></path>
+  `;
+  return icon;
+}
+
 function getCardPreviewText(task) {
   if (task.comments.length) {
     const latestComment = task.comments.reduce((latest, comment) =>
@@ -696,6 +1503,10 @@ function createChecklistPreview(task) {
   }
 
   return list;
+}
+
+function getOpenChecklistCount(checklist) {
+  return checklist.filter((item) => !item.done).length;
 }
 
 function toggleChecklistItem(taskId, checklistItemId) {
@@ -1010,7 +1821,7 @@ function createMiniActionButton(label, onClick) {
 
 function getChecklistSummary(checklist) {
   const completed = checklist.filter((item) => item.done).length;
-  return `${completed}/${checklist.length} done`;
+  return `${completed}/${checklist.length}`;
 }
 
 function normalizeTask(task) {

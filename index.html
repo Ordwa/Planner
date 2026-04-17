@@ -24,26 +24,48 @@
           <button class="sidebar__item" type="button">Schedule</button>
         </nav>
       </aside>
+      <div class="sidebar-backdrop" id="sidebar-backdrop" hidden></div>
 
       <div class="workspace">
         <header class="command-topbar">
           <div class="command-topbar__left">
+            <button
+              class="hamburger-button button button--ghost sidebar-toggle"
+              id="sidebar-toggle"
+              type="button"
+              aria-expanded="false"
+              aria-label="Open navigation menu"
+            >
+              <span class="hamburger-button__icon" aria-hidden="true">
+                <span></span>
+                <span></span>
+                <span></span>
+              </span>
+            </button>
+
             <div class="filters-menu">
               <button
-                class="hamburger-button button button--ghost"
+                class="button button--ghost command-topbar__utility command-topbar__utility--plain"
                 id="filters-toggle"
                 type="button"
                 aria-expanded="false"
                 aria-controls="filters-panel"
                 aria-haspopup="true"
-              >
-                <span class="hamburger-button__icon" aria-hidden="true">
-                  <span></span>
-                  <span></span>
-                  <span></span>
-                </span>
-                <span>Filters</span>
-              </button>
+                aria-label="Filters"
+                >
+                  <svg
+                    class="command-topbar__icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M4 6h16l-6 7v5l-4-2v-3Z" />
+                  </svg>
+                </button>
 
               <div class="filters-popover" id="filters-panel" hidden>
                 <div class="filters-popover__header">
@@ -73,7 +95,7 @@
 
             <div class="notifications-menu">
               <button
-                class="button button--ghost command-topbar__utility"
+                class="button button--ghost command-topbar__utility command-topbar__utility--plain"
                 id="notifications-button"
                 type="button"
                 aria-label="Notifications"
@@ -108,7 +130,7 @@
             </div>
 
             <button
-              class="button button--ghost command-topbar__utility"
+              class="button button--ghost command-topbar__utility command-topbar__utility--plain"
               id="notes-button"
               type="button"
               aria-label="Notes"
@@ -172,7 +194,7 @@
         class="notes-drawer__panel"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="notes-drawer-title"
+        aria-label="Notes"
       >
         <div class="notes-drawer__header">
           <div>
@@ -191,11 +213,55 @@
         </div>
 
         <div class="notes-drawer__body">
-          <textarea
-            class="notes-drawer__textarea"
-            id="notes-textarea"
-            placeholder="Write your notes here..."
-          ></textarea>
+          <div class="notes-toolbar" role="toolbar" aria-label="Notes formatting">
+            <button class="button button--ghost notes-toolbar__button" type="button" data-note-command="bold" aria-label="Bold">
+              B
+            </button>
+            <button class="button button--ghost notes-toolbar__button notes-toolbar__button--italic" type="button" data-note-command="italic" aria-label="Italic">
+              I
+            </button>
+            <button class="button button--ghost notes-toolbar__button notes-toolbar__button--underline" type="button" data-note-command="underline" aria-label="Underline">
+              U
+            </button>
+            <button class="button button--ghost notes-toolbar__button" type="button" data-note-command="heading" aria-label="Heading">
+              H
+            </button>
+            <button class="button button--ghost notes-toolbar__button" type="button" data-note-command="bulletList" aria-label="Bullet list">
+              <svg class="notes-toolbar__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                <circle cx="5" cy="7" r="1.5" fill="currentColor" stroke="none"></circle>
+                <circle cx="5" cy="12" r="1.5" fill="currentColor" stroke="none"></circle>
+                <circle cx="5" cy="17" r="1.5" fill="currentColor" stroke="none"></circle>
+                <path d="M10 7h9"></path>
+                <path d="M10 12h9"></path>
+                <path d="M10 17h9"></path>
+              </svg>
+            </button>
+            <button class="button button--ghost notes-toolbar__button" type="button" data-note-command="numberList" aria-label="Numbered list">
+              <svg class="notes-toolbar__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                <path d="M4 7h2v4"></path>
+                <path d="M3.5 11h3"></path>
+                <path d="M4 15h3l-3 3h3"></path>
+                <path d="M10 7h9"></path>
+                <path d="M10 12h9"></path>
+                <path d="M10 17h9"></path>
+              </svg>
+            </button>
+            <button class="button button--ghost notes-toolbar__button" type="button" data-note-command="checklist" aria-label="Checklist item">
+              ☑
+            </button>
+            <button class="button button--ghost notes-toolbar__button" type="button" data-note-command="quote" aria-label="Quote">
+              "
+            </button>
+          </div>
+
+          <div
+            class="notes-drawer__editor"
+            id="notes-editor"
+            contenteditable="true"
+            role="textbox"
+            aria-multiline="true"
+            data-placeholder="Start writing..."
+          ></div>
         </div>
       </section>
     </div>
@@ -364,7 +430,6 @@
           </div>
           <div class="kanban-column__meta">
             <span class="kanban-column__count"></span>
-            <span class="kanban-column__menu" aria-hidden="true">...</span>
           </div>
         </header>
         <div class="kanban-column__list"></div>
@@ -374,7 +439,6 @@
     <template id="task-template">
       <article class="task-card" draggable="true" tabindex="0">
         <div class="task-card__header">
-          <span class="task-card__priority"></span>
           <span class="task-card__date"></span>
         </div>
         <h4 class="task-card__title"></h4>

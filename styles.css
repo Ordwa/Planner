@@ -152,6 +152,18 @@ select {
   border-color: var(--sidebar-border);
 }
 
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  background: rgba(17, 27, 46, 0.34);
+  backdrop-filter: blur(2px);
+}
+
+.sidebar-backdrop[hidden] {
+  display: none;
+}
+
 .workspace {
   min-width: 0;
   display: grid;
@@ -185,7 +197,11 @@ select {
 .command-topbar__left {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.7rem;
+}
+
+.command-topbar .sidebar-toggle {
+  display: none;
 }
 
 .search-bar {
@@ -244,6 +260,26 @@ select {
   padding: 0;
 }
 
+.command-topbar .command-topbar__utility--plain {
+  min-height: 30px;
+  width: 30px;
+  min-width: 30px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0;
+}
+
+.command-topbar .command-topbar__utility--plain:hover,
+.command-topbar .command-topbar__utility--plain:focus-visible {
+  transform: none;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  opacity: 0.85;
+}
+
 .command-topbar__badge {
   position: absolute;
   top: -5px;
@@ -288,25 +324,31 @@ select {
 }
 
 .command-topbar__icon {
-  width: 18px;
-  height: 18px;
+  width: 24px;
+  height: 24px;
 }
 
 .filters-popover {
-  position: absolute;
-  top: calc(100% + 0.65rem);
-  right: 0;
-  z-index: 20;
-  width: min(280px, calc(100vw - 2rem));
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 40;
+  width: min(280px, calc(100vw - 1.5rem));
+  max-width: calc(100vw - 1.5rem);
+  max-height: min(70vh, calc(100vh - 4rem));
+  overflow: auto;
   padding: 1rem;
 }
 
 .notifications-popover {
-  position: absolute;
-  top: calc(100% + 0.65rem);
-  right: 0;
-  z-index: 20;
-  width: min(320px, calc(100vw - 2rem));
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 40;
+  width: min(320px, calc(100vw - 1.5rem));
+  max-width: calc(100vw - 1.5rem);
+  max-height: min(70vh, calc(100vh - 4rem));
+  overflow: auto;
   padding: 1rem;
 }
 
@@ -768,8 +810,7 @@ select {
   gap: 0.55rem;
 }
 
-.kanban-column__count,
-.kanban-column__menu {
+.kanban-column__count {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -804,7 +845,7 @@ select {
   position: relative;
   display: grid;
   gap: 0.75rem;
-  padding: 1rem;
+  padding: 0.6rem 1rem 1rem;
   border-radius: 14px;
   border: 1px solid var(--border);
   background: #fff;
@@ -1051,19 +1092,37 @@ select {
 
 .notes-drawer__body {
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto 1fr auto;
   gap: 0.85rem;
   min-height: 0;
 }
 
-.notes-drawer__hint {
-  margin: 0;
-  color: var(--text-soft);
-  font-size: 0.9rem;
-  line-height: 1.5;
+.notes-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
 }
 
-.notes-drawer__textarea {
+.notes-toolbar__button {
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0.35rem 0.55rem;
+}
+
+.notes-toolbar__button--italic {
+  font-style: italic;
+}
+
+.notes-toolbar__button--underline {
+  text-decoration: underline;
+}
+
+.notes-toolbar__icon {
+  width: 16px;
+  height: 16px;
+}
+
+.notes-drawer__editor {
   width: 100%;
   min-height: 0;
   height: 100%;
@@ -1073,16 +1132,105 @@ select {
   background: #fff;
   color: var(--text);
   outline: none;
-  resize: none;
   transition:
     border-color var(--transition),
     box-shadow var(--transition),
     background-color var(--transition);
+  overflow: auto;
+  line-height: 1.65;
+  font-size: 0.95rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
-.notes-drawer__textarea:focus {
+.notes-checklist-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.6rem;
+}
+
+.notes-checklist__marker {
+  width: 16px;
+  height: 16px;
+  margin-top: 0.25rem;
+  cursor: pointer;
+  border: 2px solid #b9c8e2;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  flex: 0 0 auto;
+}
+
+.notes-checklist__marker::after {
+  content: "";
+  width: 7px;
+  height: 4px;
+  border-left: 2px solid transparent;
+  border-bottom: 2px solid transparent;
+  transform: rotate(-45deg) translateY(-1px);
+}
+
+.notes-checklist-item.is-checked .notes-checklist__marker {
+  border-color: var(--accent);
+  background: rgba(37, 100, 207, 0.14);
+}
+
+.notes-checklist-item.is-checked .notes-checklist__marker::after {
+  border-left-color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.notes-checklist__text {
+  min-width: 0;
+}
+
+.notes-checklist-item.is-checked .notes-checklist__text {
+  text-decoration: line-through;
+  color: var(--text-soft);
+}
+
+.task-card__pill-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+.notes-drawer__editor:focus {
   border-color: #7fa8f5;
   box-shadow: 0 0 0 3px rgba(37, 100, 207, 0.14);
+}
+
+.notes-drawer__editor:empty::before {
+  content: attr(data-placeholder);
+  color: #98a2b3;
+}
+
+.notes-drawer__editor p,
+.notes-drawer__editor ul,
+.notes-drawer__editor ol,
+.notes-drawer__editor blockquote,
+.notes-drawer__editor h2,
+.notes-drawer__editor h3 {
+  margin: 0 0 0.8rem;
+}
+
+.notes-drawer__editor ul,
+.notes-drawer__editor ol {
+  padding-left: 1.2rem;
+}
+
+.notes-drawer__editor blockquote {
+  padding-left: 0.85rem;
+  border-left: 3px solid var(--border-strong);
+  color: var(--text-soft);
+}
+
+.notes-drawer__editor h2,
+.notes-drawer__editor h3 {
+  line-height: 1.3;
 }
 
 .task-modal {
@@ -1131,25 +1279,51 @@ select {
   font-size: 1.25rem;
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 1600px) {
   .planner-app {
     grid-template-columns: 1fr;
   }
 
   .sidebar {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    align-items: start;
-    border-right: 0;
-    border-bottom: 1px solid rgba(9, 14, 22, 0.35);
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 30;
+    width: min(320px, calc(100vw - 2rem));
+    grid-template-columns: 1fr;
+    align-content: start;
+    border-right: 1px solid rgba(9, 14, 22, 0.35);
+    border-bottom: 0;
+    transform: translateX(-100%);
+    transition: transform var(--transition);
+  }
+
+  body.sidebar-open .sidebar {
+    transform: translateX(0);
+  }
+
+  body.sidebar-open .sidebar-backdrop {
+    display: block;
   }
 
   .sidebar__brand,
   .sidebar__nav {
-    grid-column: span 2;
+    grid-column: auto;
+  }
+
+  .command-topbar .sidebar-toggle {
+    display: inline-flex;
   }
 }
 
-@media (max-width: 920px) {
+@media (min-width: 1601px) {
+  .command-topbar .sidebar-toggle {
+    display: none !important;
+  }
+}
+
+@media (max-width: 1600px) {
   .workspace,
   .sidebar {
     padding: 1rem;
@@ -1158,22 +1332,30 @@ select {
   .command-topbar,
   .board-panel,
   .filters-popover,
+  .notifications-popover,
+  .notes-drawer__panel,
   .task-modal__panel {
     border-radius: 16px;
   }
 
-  .command-topbar,
+  .command-topbar {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+
   .board-panel__header {
-    display: grid;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
   }
 
-  .search-bar input,
-  .filters-popover {
+  .search-bar {
+    min-width: 180px;
+  }
+
+  .search-bar input {
     width: 100%;
-  }
-
-  .command-topbar__actions {
-    justify-content: space-between;
   }
 
   .task-form__grid {
@@ -1182,15 +1364,6 @@ select {
 }
 
 @media (max-width: 680px) {
-  .sidebar {
-    grid-template-columns: 1fr;
-  }
-
-  .sidebar__brand,
-  .sidebar__nav {
-    grid-column: auto;
-  }
-
   .sidebar__nav {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1207,11 +1380,6 @@ select {
 
   .command-topbar__actions > * {
     flex: 1 1 auto;
-  }
-
-  .filters-popover {
-    right: auto;
-    left: 0;
   }
 
   .kanban-board {
