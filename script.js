@@ -31,30 +31,36 @@ const DEFAULT_TASKS = [
     title: "Plan weekly priorities",
     description: "Review upcoming activities and break them into small actions.",
     owner: "Operations",
+    project: "Planning",
     dueDate: "",
     priority: "high",
     status: "todo",
     createdAt: Date.now(),
+    order: 1,
   },
   {
     id: generateId(),
     title: "Update project board",
     description: "Move current tasks to reflect the real project status.",
     owner: "Product Team",
+    project: "Product",
     dueDate: "",
     priority: "medium",
     status: "progress",
     createdAt: Date.now() + 1,
+    order: 1,
   },
   {
     id: generateId(),
     title: "Archive completed items",
     description: "Clean up the board and keep only relevant finished work.",
     owner: "Admin",
+    project: "Operations",
     dueDate: "",
     priority: "low",
     status: "done",
     createdAt: Date.now() + 2,
+    order: 1,
   },
 ];
 
@@ -65,10 +71,11 @@ const state = {
     search: "",
     priority: "all",
   },
-  columnSorts: Object.fromEntries(COLUMN_CONFIG.map((column) => [column.key, "newest"])),
+  columnSorts: Object.fromEntries(COLUMN_CONFIG.map((column) => [column.key, "manual"])),
   openColumnMenuKey: null,
   openTaskMenuId: null,
   editingTaskId: null,
+  modalTaskStatus: "backlog",
   modalChecklist: [],
   modalComments: [],
 };
@@ -117,10 +124,11 @@ const fieldRefs = {
   owner: document.querySelector("#task-owner"),
   dueDate: document.querySelector("#task-due-date"),
   priority: document.querySelector("#task-priority"),
-  status: document.querySelector("#task-status"),
+  project: document.querySelector("#task-project"),
 };
 
 let draggedTaskId = null;
+let draggedModalChecklistItemId = null;
 
 taskForm.addEventListener("submit", handleTaskSubmit);
 resetButton.addEventListener("click", closeTaskModal);
@@ -150,7 +158,7 @@ notesToolbar.addEventListener("mousedown", handleNotesToolbarMouseDown);
   field.addEventListener("input", autoSaveEditingTask);
 });
 
-[fieldRefs.priority, fieldRefs.status, showChecklistOnCardInput].forEach((field) => {
+[fieldRefs.priority, fieldRefs.project, showChecklistOnCardInput].forEach((field) => {
   field.addEventListener("change", autoSaveEditingTask);
 });
 
@@ -1007,15 +1015,19 @@ function createNotesListElement(listTagName, itemsHtml) {
 }
 
 function buildTaskFromForm(fallbackTask) {
+  const nextStatus = fallbackTask?.status ?? state.modalTaskStatus ?? "backlog";
+
   return normalizeTask({
     id: state.editingTaskId ?? generateId(),
     title: fieldRefs.title.value.trim() || fallbackTask?.title || "",
     description: fieldRefs.description.value.trim(),
     owner: fieldRefs.owner.value.trim(),
+    project: fieldRefs.project.value,
     dueDate: fieldRefs.dueDate.value,
     priority: fieldRefs.priority.value,
-    status: fieldRefs.status.value,
+    status: nextStatus,
     createdAt: state.editingTaskId ? fallbackTask?.createdAt ?? Date.now() : Date.now(),
+    order: state.editingTaskId ? fallbackTask?.order ?? getNextTaskOrder(nextStatus) : getNextTaskOrder(nextStatus),
     showChecklistOnCard: showChecklistOnCardInput.checked,
     checklist: state.modalChecklist,
     comments: state.modalComments,
@@ -1069,11 +1081,12 @@ function handleTaskSubmit(event) {
 function resetForm() {
   taskForm.reset();
   state.editingTaskId = null;
+  state.modalTaskStatus = "backlog";
   state.modalChecklist = [];
   state.modalComments = [];
   fieldRefs.id.value = "";
   fieldRefs.priority.value = "medium";
-  fieldRefs.status.value = "backlog";
+  fieldRefs.project.value = "General";
   showChecklistOnCardInput.checked = false;
   checklistInput.value = "";
   commentInput.value = "";
@@ -1181,7 +1194,7 @@ function positionTopbarPopover(panel, trigger) {
   const maxTop = window.innerHeight - panelHeight - viewportPadding;
 
   const nextLeft = Math.min(
-    Math.max(viewportPadding, triggerRect.right - panelWidth),
+    Math.max(viewportPadding, triggerRect.left),
     Math.max(viewportPadding, maxLeft)
   );
 
@@ -1330,6 +1343,8 @@ function sortColumnTasks(tasks, sortKey) {
 
   return [...tasks].sort((left, right) => {
     switch (sortKey) {
+      case "manual":
+        return (left.order ?? Number.MAX_SAFE_INTEGER) - (right.order ?? Number.MAX_SAFE_INTEGER) || right.createdAt - left.createdAt;
       case "oldest":
         return left.createdAt - right.createdAt;
       case "dueDate":
@@ -1444,6 +1459,8 @@ function createTaskCard(task) {
 
   card.addEventListener("dragstart", () => {
     draggedTaskId = task.id;
+    state.openTaskMenuId = null;
+    state.openColumnMenuKey = null;
     card.classList.add("is-dragging");
   });
 
@@ -1452,6 +1469,10 @@ function createTaskCard(task) {
     card.classList.remove("is-dragging");
     clearDropTargets();
   });
+
+  card.addEventListener("dragover", handleTaskCardDragOver);
+  card.addEventListener("dragleave", handleTaskCardDragLeave);
+  card.addEventListener("drop", handleTaskCardDrop);
 
   actionsNode.appendChild(createTaskActionMenu(task));
 
@@ -1665,13 +1686,14 @@ function fillForm(task, options = {}) {
   const { isClone = false } = options;
 
   state.editingTaskId = isClone ? null : task.id;
+  state.modalTaskStatus = task.status;
   fieldRefs.id.value = isClone ? "" : task.id;
   fieldRefs.title.value = task.title;
   fieldRefs.description.value = task.description;
   fieldRefs.owner.value = task.owner;
+  fieldRefs.project.value = task.project || "General";
   fieldRefs.dueDate.value = task.dueDate;
   fieldRefs.priority.value = task.priority;
-  fieldRefs.status.value = task.status;
   showChecklistOnCardInput.checked = task.showChecklistOnCard;
   state.modalChecklist = task.checklist.map((item) => cloneChecklistItem(item, { assignNewId: isClone }));
   state.modalComments = task.comments.map((comment) => cloneComment(comment, { assignNewId: isClone }));
@@ -1700,16 +1722,110 @@ function deleteTask(taskId) {
 }
 
 function moveTask(taskId, nextStatus) {
-  state.tasks = state.tasks.map((task) =>
-    task.id === taskId ? { ...task, status: nextStatus } : task
-  );
+  moveTaskToColumnEnd(taskId, nextStatus);
+}
 
-  if (state.editingTaskId === taskId) {
-    fieldRefs.status.value = nextStatus;
+function moveTaskToColumnEnd(taskId, nextStatus) {
+  const task = findTaskById(taskId);
+
+  if (!task || !nextStatus) {
+    return;
+  }
+
+  const sourceStatus = task.status;
+  const sourceTasks = getManualColumnTasks(sourceStatus).filter((item) => item.id !== taskId);
+  const targetTasks =
+    sourceStatus === nextStatus
+      ? sourceTasks
+      : getManualColumnTasks(nextStatus);
+
+  const movedTask = {
+    ...task,
+    status: nextStatus,
+  };
+
+  targetTasks.push(movedTask);
+  applyColumnReorder(sourceStatus, sourceTasks, nextStatus, targetTasks);
+}
+
+function reorderTaskBeforeTarget(taskId, targetTaskId) {
+  const draggedTask = findTaskById(taskId);
+  const targetTask = findTaskById(targetTaskId);
+
+  if (!draggedTask || !targetTask || draggedTask.id === targetTask.id) {
+    return;
+  }
+
+  const sourceStatus = draggedTask.status;
+  const targetStatus = targetTask.status;
+  const sourceTasks = getManualColumnTasks(sourceStatus).filter((item) => item.id !== taskId);
+  const targetTasks =
+    sourceStatus === targetStatus
+      ? sourceTasks
+      : getManualColumnTasks(targetStatus);
+
+  const insertIndex = targetTasks.findIndex((item) => item.id === targetTaskId);
+  const movedTask = {
+    ...draggedTask,
+    status: targetStatus,
+  };
+
+  targetTasks.splice(insertIndex < 0 ? targetTasks.length : insertIndex, 0, movedTask);
+  applyColumnReorder(sourceStatus, sourceTasks, targetStatus, targetTasks);
+}
+
+function applyColumnReorder(sourceStatus, sourceTasks, targetStatus, targetTasks) {
+  const updates = new Map();
+
+  sourceTasks.forEach((task, index) => {
+    updates.set(task.id, {
+      status: sourceStatus,
+      order: index + 1,
+    });
+  });
+
+  targetTasks.forEach((task, index) => {
+    updates.set(task.id, {
+      status: targetStatus,
+      order: index + 1,
+    });
+  });
+
+  state.tasks = state.tasks.map((task) => {
+    const next = updates.get(task.id);
+
+    if (!next) {
+      return task;
+    }
+
+    return {
+      ...task,
+      status: next.status,
+      order: next.order,
+    };
+  });
+
+  if (state.editingTaskId && updates.has(state.editingTaskId)) {
+    state.modalTaskStatus = updates.get(state.editingTaskId).status;
   }
 
   saveTasks();
   render();
+}
+
+function getManualColumnTasks(status) {
+  return state.tasks
+    .filter((task) => task.status === status)
+    .sort((left, right) => {
+      const leftOrder = left.order ?? Number.MAX_SAFE_INTEGER;
+      const rightOrder = right.order ?? Number.MAX_SAFE_INTEGER;
+      return leftOrder - rightOrder || right.createdAt - left.createdAt;
+    });
+}
+
+function getNextTaskOrder(status) {
+  const columnTasks = getManualColumnTasks(status);
+  return columnTasks.length + 1;
 }
 
 function handleColumnDragOver(event) {
@@ -1732,13 +1848,43 @@ function handleColumnDrop(event) {
     return;
   }
 
-  moveTask(draggedTaskId, nextStatus);
+  if (event.target.closest(".task-card")) {
+    return;
+  }
+
+  moveTaskToColumnEnd(draggedTaskId, nextStatus);
+}
+
+function handleTaskCardDragOver(event) {
+  event.preventDefault();
+  event.stopPropagation();
+  event.currentTarget.classList.add("is-drop-target");
+}
+
+function handleTaskCardDragLeave(event) {
+  if (!event.currentTarget.contains(event.relatedTarget)) {
+    event.currentTarget.classList.remove("is-drop-target");
+  }
+}
+
+function handleTaskCardDrop(event) {
+  event.preventDefault();
+  event.stopPropagation();
+  event.currentTarget.classList.remove("is-drop-target");
+
+  const targetTaskId = event.currentTarget.dataset.taskId;
+
+  if (!draggedTaskId || !targetTaskId || draggedTaskId === targetTaskId) {
+    return;
+  }
+
+  reorderTaskBeforeTarget(draggedTaskId, targetTaskId);
 }
 
 function clearDropTargets() {
   document
-    .querySelectorAll(".kanban-column.is-drop-target")
-    .forEach((column) => column.classList.remove("is-drop-target"));
+    .querySelectorAll(".kanban-column.is-drop-target, .task-card.is-drop-target")
+    .forEach((node) => node.classList.remove("is-drop-target"));
 }
 
 function getFilteredTasks() {
@@ -1749,6 +1895,7 @@ function getFilteredTasks() {
           task.title,
           task.description,
           task.owner,
+          task.project,
           ...task.checklist.map((item) => item.text),
           ...task.comments.map((comment) => comment.text),
         ]
@@ -1830,6 +1977,8 @@ function renderChecklist() {
   state.modalChecklist.forEach((item) => {
     const row = document.createElement("div");
     row.className = "checklist-item";
+    row.draggable = true;
+    row.dataset.checklistItemId = item.id;
 
     const main = document.createElement("label");
     main.className = "checklist-item__main";
@@ -1863,6 +2012,21 @@ function renderChecklist() {
       autoSaveEditingTask();
     });
 
+    row.addEventListener("dragstart", () => {
+      draggedModalChecklistItemId = item.id;
+      row.classList.add("is-dragging");
+    });
+
+    row.addEventListener("dragend", () => {
+      draggedModalChecklistItemId = null;
+      row.classList.remove("is-dragging");
+      clearModalChecklistDropTargets();
+    });
+
+    row.addEventListener("dragover", handleModalChecklistDragOver);
+    row.addEventListener("dragleave", handleModalChecklistDragLeave);
+    row.addEventListener("drop", handleModalChecklistDrop);
+
     if (item.done) {
       textInput.classList.add("is-complete");
     }
@@ -1871,6 +2035,58 @@ function renderChecklist() {
     row.append(main, removeButton);
     checklistList.appendChild(row);
   });
+}
+
+function handleModalChecklistDragOver(event) {
+  event.preventDefault();
+  event.currentTarget.classList.add("is-drop-target");
+}
+
+function handleModalChecklistDragLeave(event) {
+  if (!event.currentTarget.contains(event.relatedTarget)) {
+    event.currentTarget.classList.remove("is-drop-target");
+  }
+}
+
+function handleModalChecklistDrop(event) {
+  event.preventDefault();
+  event.currentTarget.classList.remove("is-drop-target");
+
+  const targetChecklistItemId = event.currentTarget.dataset.checklistItemId;
+
+  if (
+    !draggedModalChecklistItemId ||
+    !targetChecklistItemId ||
+    draggedModalChecklistItemId === targetChecklistItemId
+  ) {
+    return;
+  }
+
+  reorderModalChecklistBeforeTarget(draggedModalChecklistItemId, targetChecklistItemId);
+}
+
+function reorderModalChecklistBeforeTarget(draggedItemId, targetItemId) {
+  const draggedIndex = state.modalChecklist.findIndex((item) => item.id === draggedItemId);
+  const targetIndex = state.modalChecklist.findIndex((item) => item.id === targetItemId);
+
+  if (draggedIndex < 0 || targetIndex < 0 || draggedIndex === targetIndex) {
+    return;
+  }
+
+  const nextChecklist = [...state.modalChecklist];
+  const [draggedItem] = nextChecklist.splice(draggedIndex, 1);
+  const nextTargetIndex = nextChecklist.findIndex((item) => item.id === targetItemId);
+  nextChecklist.splice(nextTargetIndex < 0 ? nextChecklist.length : nextTargetIndex, 0, draggedItem);
+
+  state.modalChecklist = nextChecklist;
+  renderChecklist();
+  autoSaveEditingTask();
+}
+
+function clearModalChecklistDropTargets() {
+  checklistList
+    .querySelectorAll(".checklist-item.is-drop-target")
+    .forEach((item) => item.classList.remove("is-drop-target"));
 }
 
 function addComment() {
@@ -1966,10 +2182,12 @@ function normalizeTask(task) {
     title: String(task.title ?? "").trim(),
     description: String(task.description ?? "").trim(),
     owner: String(task.owner ?? "").trim(),
+    project: String(task.project ?? "General").trim() || "General",
     dueDate: task.dueDate ?? "",
     priority: ["high", "medium", "low"].includes(task.priority) ? task.priority : "medium",
     status: COLUMN_CONFIG.some((column) => column.key === task.status) ? task.status : "backlog",
     createdAt: task.createdAt ?? Date.now(),
+    order: Number.isFinite(task.order) ? task.order : Number.MAX_SAFE_INTEGER,
     showChecklistOnCard: Boolean(task.showChecklistOnCard),
     checklist: Array.isArray(task.checklist)
       ? task.checklist
