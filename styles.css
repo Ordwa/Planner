@@ -363,7 +363,6 @@ select {
 .task-form select {
   width: 100%;
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
   padding: 0.68rem 0.82rem;
   background: #fff;
   color: var(--text);
@@ -372,6 +371,16 @@ select {
     border-color var(--transition),
     box-shadow var(--transition),
     background-color var(--transition);
+}
+
+#task-priority,
+#task-due-date,
+#checklist-input,
+#link-title-input,
+#link-url-input {
+  min-height: 30px;
+  padding-top: 0.28rem;
+  padding-bottom: 0.28rem;
 }
 
 .workspace-main {
@@ -383,7 +392,7 @@ select {
   background: transparent;
   border-color: transparent;
   box-shadow: none;
-  padding: 0.8rem;
+  /* padding: 0.5rem; */
 }
 
 .board-panel__header {
@@ -480,6 +489,7 @@ select {
 }
 
 .inline-entry,
+.link-entry,
 .comment-entry {
   display: grid;
   gap: 0.5rem;
@@ -490,7 +500,13 @@ select {
   align-items: center;
 }
 
+.link-entry {
+  grid-template-columns: minmax(0, 0.325fr) minmax(0, 1fr) auto;
+  align-items: center;
+}
+
 .checklist-list,
+.links-list,
 .comments-list {
   display: grid;
   gap: 0;
@@ -611,6 +627,32 @@ select {
 .checklist-item__text.is-complete {
   text-decoration: line-through;
   color: var(--text-soft);
+}
+
+.link-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.45rem;
+  align-items: center;
+  padding: 0.28rem 0;
+  border-bottom: 1px solid rgba(216, 224, 236, 0.65);
+}
+
+.link-item__anchor {
+  min-width: 0;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.link-item__anchor:hover,
+.link-item__anchor:focus-visible {
+  text-decoration: underline;
+  outline: none;
 }
 
 .comment-item {
@@ -952,7 +994,7 @@ select {
   display: grid;
   align-content: start;
   gap: 0.7rem;
-  padding: 0.8rem;
+  padding: 0.8rem 0.4rem;
 }
 
 .kanban-column__empty {
@@ -1550,9 +1592,6 @@ select {
     width: 100%;
   }
 
-  .task-form__grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 680px) {

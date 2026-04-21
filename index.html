@@ -328,6 +328,37 @@
             <div class="checklist-list" id="checklist-list"></div>
           </section>
 
+          <section class="task-form__section" aria-labelledby="links-title">
+            <div class="task-form__section-header">
+              <div>
+                <h3 id="links-title">Link</h3>
+              </div>
+            </div>
+
+            <div class="link-entry">
+              <input
+                id="link-title-input"
+                type="text"
+                placeholder="Label"
+                maxlength="80"
+              />
+              <input
+                id="link-url-input"
+                type="url"
+                placeholder="https://example.com"
+              />
+              <button
+                class="button button--ghost"
+                id="add-link"
+                type="button"
+              >
+                +
+              </button>
+            </div>
+
+            <div class="links-list" id="links-list"></div>
+          </section>
+
           <section class="task-form__section" aria-labelledby="comments-title">
             <div class="task-form__section-header">
               <div>

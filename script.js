@@ -76,6 +76,7 @@ const state = {
   editingTaskId: null,
   modalTaskStatus: "backlog",
   modalChecklist: [],
+  modalLinks: [],
   modalComments: [],
 };
 
@@ -107,6 +108,10 @@ const checklistInput = document.querySelector("#checklist-input");
 const showChecklistOnCardInput = document.querySelector("#show-checklist-on-card");
 const addChecklistItemButton = document.querySelector("#add-checklist-item");
 const checklistList = document.querySelector("#checklist-list");
+const linkTitleInput = document.querySelector("#link-title-input");
+const linkUrlInput = document.querySelector("#link-url-input");
+const addLinkButton = document.querySelector("#add-link");
+const linksList = document.querySelector("#links-list");
 const commentInput = document.querySelector("#comment-input");
 const addCommentButton = document.querySelector("#add-comment");
 const commentsList = document.querySelector("#comments-list");
@@ -134,6 +139,7 @@ resetButton.addEventListener("click", closeTaskModal);
 openTaskModalButton.addEventListener("click", () => openTaskModal());
 closeTaskModalButton?.addEventListener("click", closeTaskModal);
 addChecklistItemButton.addEventListener("click", addChecklistItem);
+addLinkButton.addEventListener("click", addLink);
 addCommentButton.addEventListener("click", addComment);
 notesButton.addEventListener("click", () => {
   setFiltersOpen(false);
@@ -161,6 +167,15 @@ checklistInput.addEventListener("keydown", (event) => {
     event.preventDefault();
     addChecklistItem();
   }
+});
+
+[linkTitleInput, linkUrlInput].forEach((field) => {
+  field.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      addLink();
+    }
+  });
 });
 
 commentInput.addEventListener("keydown", (event) => {
@@ -1001,6 +1016,7 @@ function buildTaskFromForm(fallbackTask) {
     order: state.editingTaskId ? fallbackTask?.order ?? getNextTaskOrder(nextStatus) : getNextTaskOrder(nextStatus),
     showChecklistOnCard: showChecklistOnCardInput.checked,
     checklist: state.modalChecklist,
+    links: state.modalLinks,
     comments: state.modalComments,
   });
 }
@@ -1089,6 +1105,7 @@ function resetForm() {
   state.editingTaskId = null;
   state.modalTaskStatus = "backlog";
   state.modalChecklist = [];
+  state.modalLinks = [];
   state.modalComments = [];
   fieldRefs.id.value = "";
   fieldRefs.title.value = "";
@@ -1097,6 +1114,8 @@ function resetForm() {
   fieldRefs.priority.value = "medium";
   showChecklistOnCardInput.checked = false;
   checklistInput.value = "";
+  linkTitleInput.value = "";
+  linkUrlInput.value = "";
   commentInput.value = "";
   resetButton.hidden = false;
   renderModalCollections();
@@ -1270,6 +1289,7 @@ function renderNotificationsPanel() {
 
 function renderModalCollections() {
   renderChecklist();
+  renderLinks();
   renderComments();
 }
 
@@ -1729,8 +1749,11 @@ function fillForm(task, options = {}) {
   fieldRefs.priority.value = task.priority;
   showChecklistOnCardInput.checked = task.showChecklistOnCard;
   state.modalChecklist = task.checklist.map((item) => cloneChecklistItem(item, { assignNewId: isClone }));
+  state.modalLinks = task.links.map((link) => cloneLink(link, { assignNewId: isClone }));
   state.modalComments = task.comments.map((comment) => cloneComment(comment, { assignNewId: isClone }));
   checklistInput.value = "";
+  linkTitleInput.value = "";
+  linkUrlInput.value = "";
   commentInput.value = "";
 }
 
@@ -2017,6 +2040,7 @@ function getFilteredTasks() {
           task.owner,
           task.project,
           ...task.checklist.map((item) => item.text),
+          ...task.links.flatMap((link) => [link.title, link.url]),
           ...task.comments.map((comment) => comment.text),
         ]
           .join(" ")
@@ -2244,6 +2268,78 @@ function clearModalChecklistDropTargets() {
     .forEach((item) => item.classList.remove("is-drop-target"));
 }
 
+function addLink() {
+  const rawUrl = linkUrlInput.value.trim();
+  const url = normalizeLinkUrl(rawUrl);
+
+  if (!url) {
+    linkUrlInput.focus();
+    return;
+  }
+
+  const title = linkTitleInput.value.trim() || url;
+
+  state.modalLinks = [
+    ...state.modalLinks,
+    { id: generateId(), title, url },
+  ];
+  linkTitleInput.value = "";
+  linkUrlInput.value = "";
+  renderLinks();
+  autoSaveEditingTask();
+  linkTitleInput.focus();
+}
+
+function renderLinks() {
+  linksList.innerHTML = "";
+
+  if (!state.modalLinks.length) {
+    linksList.appendChild(createEmptyState("No links yet."));
+    return;
+  }
+
+  state.modalLinks.forEach((link) => {
+    const item = document.createElement("div");
+    item.className = "link-item";
+
+    const anchor = document.createElement("a");
+    anchor.className = "link-item__anchor";
+    anchor.href = link.url;
+    anchor.target = "_blank";
+    anchor.rel = "noreferrer";
+    anchor.textContent = link.title;
+    anchor.title = link.url;
+
+    const removeButton = createMiniActionButton("Remove link", () => {
+      state.modalLinks = state.modalLinks.filter((entry) => entry.id !== link.id);
+      renderLinks();
+      autoSaveEditingTask();
+    });
+
+    item.append(anchor, removeButton);
+    linksList.appendChild(item);
+  });
+}
+
+function normalizeLinkUrl(value) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  const candidate = /^[a-z][a-z\d+.-]*:\/\//i.test(trimmed)
+    ? trimmed
+    : `https://${trimmed}`;
+
+  try {
+    const url = new URL(candidate);
+    return ["http:", "https:"].includes(url.protocol) ? url.href : "";
+  } catch {
+    return "";
+  }
+}
+
 function addComment() {
   const text = commentInput.value.trim();
 
@@ -2349,6 +2445,11 @@ function normalizeTask(task) {
           .map(normalizeChecklistItem)
           .filter((item) => item.text)
       : [],
+    links: Array.isArray(task.links)
+      ? task.links
+          .map(normalizeLink)
+          .filter((link) => link.url)
+      : [],
     comments: Array.isArray(task.comments)
       ? task.comments
           .map(normalizeComment)
@@ -2373,6 +2474,16 @@ function normalizeComment(comment) {
   };
 }
 
+function normalizeLink(link) {
+  const url = normalizeLinkUrl(String(link?.url ?? ""));
+
+  return {
+    id: link?.id ?? generateId(),
+    title: String(link?.title ?? "").trim() || url,
+    url,
+  };
+}
+
 function cloneChecklistItem(item, options = {}) {
   const { assignNewId = false } = options;
 
@@ -2390,6 +2501,16 @@ function cloneComment(comment, options = {}) {
     id: assignNewId ? generateId() : comment.id,
     text: comment.text,
     createdAt: comment.createdAt,
+  };
+}
+
+function cloneLink(link, options = {}) {
+  const { assignNewId = false } = options;
+
+  return {
+    id: assignNewId ? generateId() : link.id,
+    title: link.title,
+    url: link.url,
   };
 }
 
