@@ -106,6 +106,7 @@ const notesToolbar = document.querySelector(".notes-toolbar");
 const notesEditor = document.querySelector("#notes-editor");
 const taskModal = document.querySelector("#task-modal");
 const taskModalTitle = document.querySelector("#task-modal-title");
+const taskOwnerAvatar = document.querySelector("#task-owner-avatar");
 const checklistInput = document.querySelector("#checklist-input");
 const showChecklistOnCardInput = document.querySelector("#show-checklist-on-card");
 const addChecklistItemButton = document.querySelector("#add-checklist-item");
@@ -121,19 +122,21 @@ const fieldRefs = {
   id: document.querySelector("#task-id"),
   title: document.querySelector("#task-title"),
   description: document.querySelector("#task-description"),
-  owner: document.querySelector("#task-owner"),
   dueDate: document.querySelector("#task-due-date"),
   priority: document.querySelector("#task-priority"),
-  project: document.querySelector("#task-project"),
 };
 
 let draggedTaskId = null;
 let draggedModalChecklistItemId = null;
 
+taskModalTitle.addEventListener("input", handleInlineTitleInput);
+taskModalTitle.addEventListener("keydown", handleInlineTitleKeydown);
+taskModalTitle.addEventListener("blur", handleInlineTitleBlur);
+
 taskForm.addEventListener("submit", handleTaskSubmit);
 resetButton.addEventListener("click", closeTaskModal);
 openTaskModalButton.addEventListener("click", () => openTaskModal());
-closeTaskModalButton.addEventListener("click", closeTaskModal);
+closeTaskModalButton?.addEventListener("click", closeTaskModal);
 addChecklistItemButton.addEventListener("click", addChecklistItem);
 addCommentButton.addEventListener("click", addComment);
 sidebarToggle.addEventListener("click", () => {
@@ -154,11 +157,11 @@ notesEditor.addEventListener("keydown", handleNotesEditorKeydown);
 notesToolbar.addEventListener("click", handleNotesToolbarClick);
 notesToolbar.addEventListener("mousedown", handleNotesToolbarMouseDown);
 
-[fieldRefs.title, fieldRefs.description, fieldRefs.owner, fieldRefs.dueDate].forEach((field) => {
+[fieldRefs.title, fieldRefs.description, fieldRefs.dueDate].forEach((field) => {
   field.addEventListener("input", autoSaveEditingTask);
 });
 
-[fieldRefs.priority, fieldRefs.project, showChecklistOnCardInput].forEach((field) => {
+[fieldRefs.priority, showChecklistOnCardInput].forEach((field) => {
   field.addEventListener("change", autoSaveEditingTask);
 });
 
@@ -1021,8 +1024,8 @@ function buildTaskFromForm(fallbackTask) {
     id: state.editingTaskId ?? generateId(),
     title: fieldRefs.title.value.trim() || fallbackTask?.title || "",
     description: fieldRefs.description.value.trim(),
-    owner: fieldRefs.owner.value.trim(),
-    project: fieldRefs.project.value,
+    owner: fallbackTask?.owner ?? "",
+    project: fallbackTask?.project ?? "General",
     dueDate: fieldRefs.dueDate.value,
     priority: fieldRefs.priority.value,
     status: nextStatus,
@@ -1050,6 +1053,7 @@ function autoSaveEditingTask() {
     return;
   }
 
+  syncTitleInputFromInlineTitle();
   const currentTask = findTaskById(state.editingTaskId);
 
   if (!currentTask) {
@@ -1061,6 +1065,7 @@ function autoSaveEditingTask() {
 
 function handleTaskSubmit(event) {
   event.preventDefault();
+  syncTitleInputFromInlineTitle();
 
   if (state.editingTaskId) {
     autoSaveEditingTask();
@@ -1078,6 +1083,39 @@ function handleTaskSubmit(event) {
   closeTaskModal();
 }
 
+function handleInlineTitleInput() {
+  syncTitleInputFromInlineTitle();
+  autoSaveEditingTask();
+}
+
+function handleInlineTitleKeydown(event) {
+  if (event.key !== "Enter") {
+    return;
+  }
+
+  event.preventDefault();
+  taskModalTitle.blur();
+}
+
+function handleInlineTitleBlur() {
+  syncTitleInputFromInlineTitle();
+
+  if (!fieldRefs.title.value) {
+    setInlineTaskTitle("New Activity");
+  }
+
+  autoSaveEditingTask();
+}
+
+function syncTitleInputFromInlineTitle() {
+  fieldRefs.title.value = taskModalTitle.textContent.trim();
+}
+
+function setInlineTaskTitle(title) {
+  taskModalTitle.textContent = title || "New Activity";
+  syncTitleInputFromInlineTitle();
+}
+
 function resetForm() {
   taskForm.reset();
   state.editingTaskId = null;
@@ -1085,8 +1123,10 @@ function resetForm() {
   state.modalChecklist = [];
   state.modalComments = [];
   fieldRefs.id.value = "";
+  fieldRefs.title.value = "";
+  setInlineTaskTitle("New Activity");
+  updateOwnerAvatar(taskOwnerAvatar, "");
   fieldRefs.priority.value = "medium";
-  fieldRefs.project.value = "General";
   showChecklistOnCardInput.checked = false;
   checklistInput.value = "";
   commentInput.value = "";
@@ -1104,19 +1144,16 @@ function openTaskModal(task, options = {}) {
 
   if (task && !isClone) {
     fillForm(task);
-    taskModalTitle.textContent = "Edit Activity";
     submitButton.hidden = true;
     resetButton.hidden = true;
   } else if (task && isClone) {
     fillForm(task, { isClone: true });
-    taskModalTitle.textContent = "Clone Activity";
     submitButton.hidden = false;
     submitButton.textContent = "Create copy";
     resetButton.hidden = false;
     resetButton.textContent = "Cancel";
   } else {
     resetForm();
-    taskModalTitle.textContent = "New Activity";
     submitButton.hidden = false;
     submitButton.textContent = "Create task";
     resetButton.hidden = false;
@@ -1126,7 +1163,6 @@ function openTaskModal(task, options = {}) {
   renderModalCollections();
   taskModal.hidden = false;
   syncOverlayState();
-  fieldRefs.title.focus();
 }
 
 function closeTaskModal() {
@@ -1164,7 +1200,6 @@ function setNotesDrawerOpen(isOpen) {
 
   if (isOpen) {
     renderNotesEditor();
-    focusNotesEditor();
   }
 }
 
@@ -1296,6 +1331,7 @@ function renderBoard() {
     columnNode.dataset.column = column.key;
     titleNode.textContent = column.title;
     countNode.textContent = String(columnTasks.length);
+    menuToggle.closest(".kanban-column__menu")?.classList.toggle("is-open", state.openColumnMenuKey === column.key);
     menuToggle.setAttribute("aria-expanded", String(state.openColumnMenuKey === column.key));
     dropdown.hidden = state.openColumnMenuKey !== column.key;
 
@@ -1304,6 +1340,7 @@ function renderBoard() {
     columnNode.addEventListener("drop", handleColumnDrop);
     menuToggle.addEventListener("click", (event) => {
       event.stopPropagation();
+      state.openTaskMenuId = null;
       state.openColumnMenuKey = state.openColumnMenuKey === column.key ? null : column.key;
       renderBoard();
     });
@@ -1402,21 +1439,21 @@ function createTaskCard(task) {
   const headerNode = fragment.querySelector(".task-card__header");
   const dateNode = fragment.querySelector(".task-card__date");
   const titleNode = fragment.querySelector(".task-card__title");
-  const descriptionNode = fragment.querySelector(".task-card__description");
   const metaNode = fragment.querySelector(".task-card__meta");
+  const ownerNode = fragment.querySelector(".task-card__owner");
   const actionsNode = fragment.querySelector(".task-card__actions");
 
   card.dataset.taskId = task.id;
   card.classList.add(`task-card--${task.priority}`);
+  card.classList.toggle("is-menu-open", state.openTaskMenuId === task.id);
 
   titleNode.textContent = task.title;
-  descriptionNode.textContent = getCardPreviewText(task);
 
   if (task.showChecklistOnCard && task.checklist.length) {
     const checklistPreview = createChecklistPreview(task);
 
     if (checklistPreview) {
-      descriptionNode.after(checklistPreview);
+      titleNode.after(checklistPreview);
     }
   }
 
@@ -1429,9 +1466,7 @@ function createTaskCard(task) {
     headerNode.remove();
   }
 
-  if (task.owner) {
-    metaNode.appendChild(createPill(task.owner));
-  }
+  ownerNode.appendChild(createOwnerAvatar(task.owner));
 
   if (getOpenChecklistCount(task.checklist) > 0) {
     metaNode.appendChild(createIconPill(createCheckedIcon(), getChecklistSummary(task.checklist)));
@@ -1457,10 +1492,11 @@ function createTaskCard(task) {
     }
   });
 
-  card.addEventListener("dragstart", () => {
+  card.addEventListener("dragstart", (event) => {
     draggedTaskId = task.id;
     state.openTaskMenuId = null;
     state.openColumnMenuKey = null;
+    setTaskDragImage(event, card);
     card.classList.add("is-dragging");
   });
 
@@ -1492,6 +1528,7 @@ function createTaskActionMenu(task) {
   toggle.setAttribute("aria-expanded", String(state.openTaskMenuId === task.id));
   toggle.addEventListener("click", (event) => {
     event.stopPropagation();
+    state.openColumnMenuKey = null;
     state.openTaskMenuId = state.openTaskMenuId === task.id ? null : task.id;
     renderBoard();
   });
@@ -1571,6 +1608,30 @@ function createIconPill(icon, text) {
   return pill;
 }
 
+function createOwnerAvatar(owner) {
+  const avatar = document.createElement("span");
+  avatar.className = "owner-avatar";
+  updateOwnerAvatar(avatar, owner);
+  return avatar;
+}
+
+function updateOwnerAvatar(avatar, owner) {
+  if (!avatar) {
+    return;
+  }
+
+  const ownerName = String(owner ?? "").trim();
+  avatar.classList.toggle("is-unassigned", !ownerName);
+  avatar.title = ownerName ? `Owner: ${ownerName}` : "No owner assigned";
+  avatar.setAttribute("aria-label", avatar.title);
+  avatar.innerHTML = `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+      <path d="M20 21a8 8 0 0 0-16 0" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
+  `;
+}
+
 function createCheckedIcon() {
   const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   icon.setAttribute("viewBox", "0 0 24 24");
@@ -1639,7 +1700,7 @@ function createChecklistPreview(task) {
     checkmark.setAttribute("aria-pressed", "false");
     checkmark.addEventListener("click", (event) => {
       event.stopPropagation();
-      toggleChecklistItem(task.id, item.id);
+      animateAndCompleteChecklistItem(listItem, task.id, item.id);
     });
 
     const text = document.createElement("span");
@@ -1658,6 +1719,15 @@ function createChecklistPreview(task) {
   }
 
   return list;
+}
+
+function animateAndCompleteChecklistItem(listItem, taskId, checklistItemId) {
+  listItem.classList.add("is-completing");
+  listItem.querySelector(".task-card__checkmark")?.setAttribute("aria-pressed", "true");
+
+  window.setTimeout(() => {
+    toggleChecklistItem(taskId, checklistItemId);
+  }, 260);
 }
 
 function getOpenChecklistCount(checklist) {
@@ -1688,10 +1758,9 @@ function fillForm(task, options = {}) {
   state.editingTaskId = isClone ? null : task.id;
   state.modalTaskStatus = task.status;
   fieldRefs.id.value = isClone ? "" : task.id;
-  fieldRefs.title.value = task.title;
+  setInlineTaskTitle(task.title);
+  updateOwnerAvatar(taskOwnerAvatar, task.owner);
   fieldRefs.description.value = task.description;
-  fieldRefs.owner.value = task.owner;
-  fieldRefs.project.value = task.project || "General";
   fieldRefs.dueDate.value = task.dueDate;
   fieldRefs.priority.value = task.priority;
   showChecklistOnCardInput.checked = task.showChecklistOnCard;
@@ -1831,6 +1900,17 @@ function getNextTaskOrder(status) {
 function handleColumnDragOver(event) {
   event.preventDefault();
   event.currentTarget.classList.add("is-drop-target");
+
+  if (!draggedTaskId || event.target.closest(".task-card")) {
+    return;
+  }
+
+  const draggedCard = board.querySelector(`.task-card[data-task-id="${draggedTaskId}"]`);
+  const listNode = event.currentTarget.querySelector(".kanban-column__list");
+
+  if (draggedCard && listNode && draggedCard.parentElement !== listNode) {
+    listNode.appendChild(draggedCard);
+  }
 }
 
 function handleColumnDragLeave(event) {
@@ -1852,13 +1932,34 @@ function handleColumnDrop(event) {
     return;
   }
 
-  moveTaskToColumnEnd(draggedTaskId, nextStatus);
+  persistDraggedTaskOrderFromBoard();
 }
 
 function handleTaskCardDragOver(event) {
   event.preventDefault();
   event.stopPropagation();
-  event.currentTarget.classList.add("is-drop-target");
+
+  if (!draggedTaskId) {
+    return;
+  }
+
+  const targetCard = event.currentTarget;
+
+  if (targetCard.dataset.taskId === draggedTaskId) {
+    return;
+  }
+
+  const draggedCard = board.querySelector(`.task-card[data-task-id="${draggedTaskId}"]`);
+  const targetList = targetCard.closest(".kanban-column__list");
+
+  if (!draggedCard || !targetList) {
+    return;
+  }
+
+  const targetRect = targetCard.getBoundingClientRect();
+  const insertAfter = event.clientY > targetRect.top + targetRect.height / 2;
+
+  targetList.insertBefore(draggedCard, insertAfter ? targetCard.nextSibling : targetCard);
 }
 
 function handleTaskCardDragLeave(event) {
@@ -1871,20 +1972,75 @@ function handleTaskCardDrop(event) {
   event.preventDefault();
   event.stopPropagation();
   event.currentTarget.classList.remove("is-drop-target");
+  persistDraggedTaskOrderFromBoard();
+}
 
-  const targetTaskId = event.currentTarget.dataset.taskId;
-
-  if (!draggedTaskId || !targetTaskId || draggedTaskId === targetTaskId) {
+function setTaskDragImage(event, card) {
+  if (!event.dataTransfer) {
     return;
   }
 
-  reorderTaskBeforeTarget(draggedTaskId, targetTaskId);
+  const dragImage = card.cloneNode(true);
+  const cardRect = card.getBoundingClientRect();
+  const offsetX = event.clientX - cardRect.left;
+  const offsetY = event.clientY - cardRect.top;
+  dragImage.classList.remove("is-dragging", "is-drop-target", "is-menu-open");
+  dragImage.style.position = "fixed";
+  dragImage.style.top = "-1000px";
+  dragImage.style.left = "-1000px";
+  dragImage.style.width = `${cardRect.width}px`;
+  dragImage.style.pointerEvents = "none";
+  dragImage.style.opacity = "1";
+  dragImage.style.transform = "none";
+  document.body.appendChild(dragImage);
+  event.dataTransfer.setDragImage(dragImage, offsetX, offsetY);
+  window.setTimeout(() => dragImage.remove(), 0);
 }
 
 function clearDropTargets() {
   document
     .querySelectorAll(".kanban-column.is-drop-target, .task-card.is-drop-target")
     .forEach((node) => node.classList.remove("is-drop-target"));
+}
+
+function persistDraggedTaskOrderFromBoard() {
+  if (!draggedTaskId) {
+    return;
+  }
+
+  const updates = new Map();
+
+  board.querySelectorAll(".kanban-column").forEach((columnNode) => {
+    const status = columnNode.dataset.column;
+
+    columnNode.querySelectorAll(".task-card").forEach((card, index) => {
+      updates.set(card.dataset.taskId, {
+        status,
+        order: index + 1,
+      });
+    });
+  });
+
+  state.tasks = state.tasks.map((task) => {
+    const next = updates.get(task.id);
+
+    if (!next) {
+      return task;
+    }
+
+    return {
+      ...task,
+      status: next.status,
+      order: next.order,
+    };
+  });
+
+  if (state.editingTaskId && updates.has(state.editingTaskId)) {
+    state.modalTaskStatus = updates.get(state.editingTaskId).status;
+  }
+
+  saveTasks();
+  render();
 }
 
 function getFilteredTasks() {
@@ -1980,6 +2136,18 @@ function renderChecklist() {
     row.draggable = true;
     row.dataset.checklistItemId = item.id;
 
+    const dragHandle = document.createElement("span");
+    dragHandle.className = "checklist-item__drag-handle";
+    dragHandle.setAttribute("aria-hidden", "true");
+    dragHandle.innerHTML = `
+      <span></span>
+      <span></span>
+      <span></span>
+      <span></span>
+      <span></span>
+      <span></span>
+    `;
+
     const main = document.createElement("label");
     main.className = "checklist-item__main";
 
@@ -2011,6 +2179,15 @@ function renderChecklist() {
       renderChecklist();
       autoSaveEditingTask();
     });
+    const assigneeSlot = document.createElement("span");
+    assigneeSlot.className = "checklist-item__assignee-slot";
+    assigneeSlot.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <path d="M20 21a8 8 0 0 0-16 0" />
+        <circle cx="12" cy="7" r="4" />
+      </svg>
+    `;
+    assigneeSlot.setAttribute("aria-hidden", "true");
 
     row.addEventListener("dragstart", () => {
       draggedModalChecklistItemId = item.id;
@@ -2032,14 +2209,35 @@ function renderChecklist() {
     }
 
     main.append(checkbox, textInput);
-    row.append(main, removeButton);
+    row.append(dragHandle, main, assigneeSlot, removeButton);
     checklistList.appendChild(row);
   });
 }
 
 function handleModalChecklistDragOver(event) {
   event.preventDefault();
-  event.currentTarget.classList.add("is-drop-target");
+
+  if (!draggedModalChecklistItemId) {
+    return;
+  }
+
+  const targetRow = event.currentTarget;
+
+  if (targetRow.dataset.checklistItemId === draggedModalChecklistItemId) {
+    return;
+  }
+
+  const draggedRow = checklistList.querySelector(
+    `.checklist-item[data-checklist-item-id="${draggedModalChecklistItemId}"]`
+  );
+
+  if (!draggedRow) {
+    return;
+  }
+
+  const targetRect = targetRow.getBoundingClientRect();
+  const insertAfter = event.clientY > targetRect.top + targetRect.height / 2;
+  checklistList.insertBefore(draggedRow, insertAfter ? targetRow.nextSibling : targetRow);
 }
 
 function handleModalChecklistDragLeave(event) {
@@ -2050,35 +2248,27 @@ function handleModalChecklistDragLeave(event) {
 
 function handleModalChecklistDrop(event) {
   event.preventDefault();
-  event.currentTarget.classList.remove("is-drop-target");
 
-  const targetChecklistItemId = event.currentTarget.dataset.checklistItemId;
-
-  if (
-    !draggedModalChecklistItemId ||
-    !targetChecklistItemId ||
-    draggedModalChecklistItemId === targetChecklistItemId
-  ) {
+  if (!draggedModalChecklistItemId) {
     return;
   }
 
-  reorderModalChecklistBeforeTarget(draggedModalChecklistItemId, targetChecklistItemId);
+  persistModalChecklistOrderFromDom();
 }
 
-function reorderModalChecklistBeforeTarget(draggedItemId, targetItemId) {
-  const draggedIndex = state.modalChecklist.findIndex((item) => item.id === draggedItemId);
-  const targetIndex = state.modalChecklist.findIndex((item) => item.id === targetItemId);
+function persistModalChecklistOrderFromDom() {
+  const nextOrder = Array.from(checklistList.querySelectorAll(".checklist-item"))
+    .map((row) => row.dataset.checklistItemId)
+    .filter(Boolean);
 
-  if (draggedIndex < 0 || targetIndex < 0 || draggedIndex === targetIndex) {
+  if (!nextOrder.length) {
     return;
   }
 
-  const nextChecklist = [...state.modalChecklist];
-  const [draggedItem] = nextChecklist.splice(draggedIndex, 1);
-  const nextTargetIndex = nextChecklist.findIndex((item) => item.id === targetItemId);
-  nextChecklist.splice(nextTargetIndex < 0 ? nextChecklist.length : nextTargetIndex, 0, draggedItem);
-
-  state.modalChecklist = nextChecklist;
+  const itemsById = new Map(state.modalChecklist.map((item) => [item.id, item]));
+  state.modalChecklist = nextOrder
+    .map((id) => itemsById.get(id))
+    .filter(Boolean);
   renderChecklist();
   autoSaveEditingTask();
 }
@@ -2156,7 +2346,7 @@ function createEmptyState(text) {
 function createMiniActionButton(label, onClick) {
   const button = document.createElement("button");
   button.type = "button";
-  button.className = "button button--ghost button--tiny button--icon";
+  button.className = "button button--ghost button--tiny button--icon mini-action-button";
   button.setAttribute("aria-label", label);
   button.innerHTML = `
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

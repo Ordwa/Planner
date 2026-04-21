@@ -165,7 +165,7 @@
           <section class="board-panel" aria-labelledby="board-title">
             <div class="board-panel__header">
               <div>
-                <h1 id="board-title">Activities</h1>
+                <h1 id="board-title">Planner</h1>
               </div>
               <button
                 class="button button--primary"
@@ -272,24 +272,27 @@
       >
         <div class="task-modal__header">
           <div>
-            <h2 id="task-modal-title">New Activity</h2>
+            <h2
+              id="task-modal-title"
+              class="task-modal__editable-title"
+              contenteditable="true"
+              role="textbox"
+              aria-label="Activity title"
+              data-placeholder="New Activity"
+            >New Activity</h2>
           </div>
-
-          <button
-            class="icon-button"
-            id="close-task-modal"
-            type="button"
-            data-close-modal="true"
-            aria-label="Close task form"
-          >
-            X
-          </button>
+          <span class="owner-avatar task-modal__owner" id="task-owner-avatar" title="Owner">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <path d="M20 21a8 8 0 0 0-16 0" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+          </span>
         </div>
 
         <form id="task-form" class="task-form">
           <input type="hidden" id="task-id" />
 
-          <label>
+          <label class="visually-hidden">
             Title
             <input
               id="task-title"
@@ -301,7 +304,7 @@
             />
           </label>
 
-          <label>
+          <label class="task-form__label--plain">
             Description
             <textarea
               id="task-description"
@@ -312,23 +315,7 @@
           </label>
 
           <div class="task-form__grid">
-            <label>
-              Owner
-              <input
-                id="task-owner"
-                name="owner"
-                type="text"
-                placeholder="Team or person"
-                maxlength="40"
-              />
-            </label>
-
-            <label>
-              Due date
-              <input id="task-due-date" name="dueDate" type="date" />
-            </label>
-
-            <label>
+            <label class="task-form__label--plain">
               Priority
               <select id="task-priority" name="priority">
                 <option value="medium">Medium</option>
@@ -337,16 +324,9 @@
               </select>
             </label>
 
-            <label>
-              Project
-              <select id="task-project" name="project">
-                <option value="General">General</option>
-                <option value="Operations">Operations</option>
-                <option value="Product">Product</option>
-                <option value="Planning">Planning</option>
-                <option value="Marketing">Marketing</option>
-                <option value="Personal">Personal</option>
-              </select>
+            <label class="task-form__label--plain">
+              Due date
+              <input id="task-due-date" name="dueDate" type="date" />
             </label>
           </div>
 
@@ -365,7 +345,7 @@
               <input
                 id="checklist-input"
                 type="text"
-                placeholder="Add Sub-activity"
+                placeholder="Add Task"
                 maxlength="120"
               />
               <button
@@ -383,7 +363,7 @@
           <section class="task-form__section" aria-labelledby="comments-title">
             <div class="task-form__section-header">
               <div>
-                <h3 id="comments-title">Updates</h3>
+                <h3 id="comments-title">Log</h3>
               </div>
             </div>
 
@@ -398,7 +378,7 @@
                 id="add-comment"
                 type="button"
               >
-                Add update
+                Add Log
               </button>
             </div>
 
@@ -454,8 +434,8 @@
           <span class="task-card__date"></span>
         </div>
         <h4 class="task-card__title"></h4>
-        <p class="task-card__description"></p>
         <div class="task-card__meta"></div>
+        <div class="task-card__owner"></div>
         <div class="task-card__actions"></div>
       </article>
     </template>

@@ -489,7 +489,7 @@ select {
 
 .board-panel__header h1 {
   margin: 0;
-  font-size: clamp(1.3rem, 2.5vw, 1.75rem);
+  font-size: clamp(1.2375rem, 2.5vw, 1.6875rem);
   letter-spacing: -0.03em;
 }
 
@@ -497,7 +497,7 @@ select {
   margin: 0;
   max-width: 34ch;
   color: var(--text-soft);
-  font-size: 0.92rem;
+  font-size: 0.8575rem;
   line-height: 1.45;
 }
 
@@ -510,8 +510,12 @@ select {
 .task-form label {
   display: grid;
   gap: 0.3rem;
-  font-size: 0.86rem;
+  font-size: 0.7975rem;
   font-weight: 600;
+}
+
+.task-form label.task-form__label--plain {
+  font-weight: 400;
 }
 
 .task-form textarea {
@@ -538,14 +542,14 @@ select {
 
 .task-form__section-header h3 {
   margin: 0;
-  font-size: 0.92rem;
+  font-size: 0.8575rem;
 }
 
 .task-form label.task-form__toggle {
   display: inline-flex;
   align-items: center;
   gap: 0.55rem;
-  font-size: 0.84rem;
+  font-size: 0.7775rem;
   font-weight: 600;
   color: var(--text-soft);
   line-height: 1;
@@ -582,7 +586,7 @@ select {
 .checklist-list,
 .comments-list {
   display: grid;
-  gap: 0.45rem;
+  gap: 0;
 }
 
 .task-form__empty {
@@ -596,13 +600,14 @@ select {
 
 .checklist-item {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.5rem;
+  grid-template-columns: 16px minmax(0, 1fr) auto auto;
+  gap: 0.32rem;
   align-items: center;
-  padding: 0.52rem 0.62rem;
-  border-radius: var(--radius-sm);
-  background: var(--surface-subtle);
-  border: 1px solid var(--border);
+  padding: 0.2rem 0;
+  border-radius: 0;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid rgba(216, 224, 236, 0.65);
   cursor: grab;
   transition:
     border-color var(--transition),
@@ -610,8 +615,35 @@ select {
     opacity var(--transition);
 }
 
+.checklist-item__drag-handle {
+  width: 14px;
+  height: 18px;
+  display: grid;
+  grid-template-columns: repeat(2, 3px);
+  grid-auto-rows: 3px;
+  gap: 3px;
+  align-content: center;
+  justify-content: center;
+  color: #98a2b3;
+  opacity: 0;
+  cursor: grab;
+  transition: opacity var(--transition);
+}
+
+.checklist-item:hover .checklist-item__drag-handle,
+.checklist-item:focus-within .checklist-item__drag-handle {
+  opacity: 1;
+}
+
+.checklist-item__drag-handle span {
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
 .checklist-item.is-dragging {
-  opacity: 0.55;
+  opacity: 0.35;
 }
 
 .checklist-item.is-drop-target {
@@ -622,28 +654,51 @@ select {
 .checklist-item__main {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.5rem;
+  gap: 0.38rem;
   align-items: center;
+  font-weight: 400;
 }
 
 .checklist-item__main input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   margin: 0;
 }
 
 .checklist-item__text {
   width: 100%;
   min-width: 0;
-  border: 0;
+  border: 0 !important;
   background: transparent;
   padding: 0;
   color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 400;
+  box-shadow: none !important;
+}
+
+.checklist-item__assignee-slot {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #eef3fb;
+  border: 1px solid var(--border);
+  color: var(--text-soft);
+  flex: 0 0 auto;
+}
+
+.checklist-item__assignee-slot svg {
+  width: 12px;
+  height: 12px;
 }
 
 .checklist-item__text:focus {
   outline: none;
-  box-shadow: none;
+  border-color: transparent !important;
+  box-shadow: none !important;
 }
 
 .checklist-item__text.is-complete {
@@ -669,7 +724,7 @@ select {
 
 .comment-item__timestamp {
   color: var(--text-soft);
-  font-size: 0.82rem;
+  font-size: 0.7575rem;
   font-weight: 600;
 }
 
@@ -686,6 +741,32 @@ select {
   gap: 0.45rem;
 }
 
+.button.mini-action-button {
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--text-soft);
+}
+
+.button.mini-action-button:hover,
+.button.mini-action-button:focus-visible {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  color: #b92c46;
+  transform: none;
+}
+
+.button.mini-action-button svg {
+  width: 14px;
+  height: 14px;
+}
+
 .task-card__actions {
   position: absolute;
   top: 0.65rem;
@@ -694,13 +775,17 @@ select {
   align-items: center;
   justify-content: flex-end;
   gap: 0.55rem;
-  z-index: 1;
+  z-index: 4;
 }
 
 .task-card__menu {
   position: relative;
   display: flex;
   align-items: center;
+}
+
+.task-card__menu.is-open {
+  z-index: 30;
 }
 
 .task-card__menu-toggle {
@@ -876,9 +961,8 @@ select {
   display: flex;
   align-items: start;
   justify-content: space-between;
-  gap: 0.6rem;
-  padding: 0.8rem;
   position: relative;
+  z-index: 3;
 }
 
 .kanban-column__heading {
@@ -890,7 +974,6 @@ select {
 
 .kanban-column__title {
   margin: 0;
-  font-size: 0.94rem;
 }
 
 .kanban-column__meta {
@@ -909,7 +992,7 @@ select {
   background: #fff;
   border: 1px solid var(--border);
   color: var(--text-soft);
-  font-size: 0.76rem;
+  font-size: 0.6975rem;
   font-weight: 700;
 }
 
@@ -917,6 +1000,10 @@ select {
   position: relative;
   display: flex;
   align-items: center;
+}
+
+.kanban-column__menu.is-open {
+  z-index: 30;
 }
 
 .kanban-column__menu-toggle {
@@ -994,7 +1081,7 @@ select {
   position: relative;
   display: grid;
   gap: 0.55rem;
-  padding: 0.5rem 0.85rem 0.85rem;
+  padding: 0.5rem 2.3rem 0.85rem 0.85rem;
   border-radius: 12px;
   border: 1px solid var(--border);
   background: #fff;
@@ -1005,6 +1092,11 @@ select {
     box-shadow var(--transition),
     opacity var(--transition),
     border-color var(--transition);
+  z-index: 0;
+}
+
+.task-card.is-menu-open {
+  z-index: 20;
 }
 
 .task-card::before {
@@ -1025,7 +1117,18 @@ select {
 }
 
 .task-card.is-dragging {
-  opacity: 0.55;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  opacity: 0.32;
+}
+
+.task-card.is-dragging > * {
+  visibility: hidden;
+}
+
+.task-card.is-dragging::before {
+  background: transparent;
 }
 
 .task-card.is-drop-target {
@@ -1053,6 +1156,46 @@ select {
   gap: 0.4rem;
 }
 
+.owner-avatar {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #eef3fb;
+  border: 1px solid var(--border);
+  color: var(--text-soft);
+  flex: 0 0 auto;
+}
+
+.owner-avatar svg {
+  width: 16px;
+  height: 16px;
+}
+
+.owner-avatar.is-unassigned {
+  opacity: 0.62;
+}
+
+.task-card__owner {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 0.75rem;
+  display: inline-flex;
+}
+
+.task-card__owner .owner-avatar {
+  width: 26px;
+  height: 26px;
+  background: #f6f8fc;
+}
+
+.task-card__owner .owner-avatar svg {
+  width: 14px;
+  height: 14px;
+}
+
 .task-card__header {
   padding-right: 2.15rem;
 }
@@ -1065,7 +1208,7 @@ select {
   min-height: 24px;
   padding: 0.28rem 0.55rem;
   border-radius: 999px;
-  font-size: 0.72rem;
+  font-size: 0.6575rem;
   font-weight: 700;
 }
 
@@ -1100,7 +1243,7 @@ select {
 
 .task-card__title {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 0.8875rem;
   line-height: 1.35;
   display: -webkit-box;
   overflow: hidden;
@@ -1112,7 +1255,7 @@ select {
 .task-card__description {
   margin: 0;
   color: var(--text-soft);
-  font-size: 0.86rem;
+  font-size: 0.7975rem;
   line-height: 1.45;
   display: -webkit-box;
   overflow: hidden;
@@ -1135,8 +1278,12 @@ select {
   align-items: start;
   gap: 0.45rem;
   color: var(--text-soft);
-  font-size: 0.8rem;
+  font-size: 0.7375rem;
   line-height: 1.35;
+  transform-origin: left center;
+  transition:
+    opacity 220ms ease,
+    transform 220ms ease;
 }
 
 .task-card__checkmark {
@@ -1150,7 +1297,7 @@ select {
   border: 1px solid var(--border-strong);
   background: var(--surface-subtle);
   color: transparent;
-  font-size: 0.72rem;
+  font-size: 0.6575rem;
   font-weight: 800;
   line-height: 1;
   cursor: pointer;
@@ -1175,6 +1322,22 @@ select {
   color: var(--low);
 }
 
+.task-card__checklist-item.is-completing {
+  opacity: 0;
+  transform: translateX(10px) scale(0.98);
+}
+
+.task-card__checklist-item.is-completing .task-card__checkmark {
+  border-color: rgba(31, 138, 99, 0.22);
+  background: rgba(31, 138, 99, 0.12);
+  color: var(--low);
+}
+
+.task-card__checklist-item.is-completing .task-card__checklist-text {
+  text-decoration: line-through;
+  color: var(--text-soft);
+}
+
 .task-card__checklist-text {
   min-width: 0;
   overflow: hidden;
@@ -1189,7 +1352,7 @@ select {
 
 .task-card__checklist-more {
   color: var(--text-soft);
-  font-size: 0.8rem;
+  font-size: 0.7375rem;
   font-weight: 600;
   padding-left: 1.6rem;
 }
@@ -1230,6 +1393,7 @@ select {
   grid-template-rows: auto 1fr;
   gap: 1rem;
   overflow: hidden;
+  font-size: 0.9375rem;
 }
 
 .notes-drawer__header {
@@ -1241,11 +1405,11 @@ select {
 
 .notes-drawer__header h2 {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: 1.1375rem;
 }
 
 .notes-drawer__header .section-label {
-  font-size: 1rem;
+  font-size: 0.9375rem;
 }
 
 .notes-drawer__body {
@@ -1296,7 +1460,7 @@ select {
     background-color var(--transition);
   overflow: auto;
   line-height: 1.55;
-  font-size: 0.92rem;
+  font-size: 0.8575rem;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -1422,6 +1586,7 @@ select {
   overflow: auto;
   padding: 0.85rem;
   box-shadow: var(--shadow-strong);
+  font-size: 0.9375rem;
 }
 
 .task-modal__header {
@@ -1430,12 +1595,42 @@ select {
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 0.65rem;
+  min-width: 0;
+}
+
+.task-modal__owner {
+  margin-top: 0.05rem;
 }
 
 .task-modal__header h2 {
   margin: 0;
-  font-size: 1.08rem;
+  font-size: 1.0175rem;
   line-height: 1.2;
+}
+
+.task-modal__editable-title {
+  display: block;
+  width: min(520px, calc(100vw - 3rem));
+  max-width: 100%;
+  white-space: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-radius: 8px;
+  padding: 0.15rem 0.25rem;
+  outline: none;
+  cursor: text;
+  scrollbar-width: thin;
+}
+
+.task-modal__editable-title:hover,
+.task-modal__editable-title:focus {
+  background: var(--surface-subtle);
+  box-shadow: 0 0 0 2px rgba(37, 100, 207, 0.12);
+}
+
+.task-modal__editable-title:empty::before {
+  content: attr(data-placeholder);
+  color: var(--text-soft);
 }
 
 @media (max-width: 1600px) {
