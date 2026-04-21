@@ -90,7 +90,13 @@ const filtersToggle = document.querySelector("#filters-toggle");
 const filtersPanel = document.querySelector("#filters-panel");
 const filtersMenu = document.querySelector(".filters-menu");
 const notificationsMenu = document.querySelector(".notifications-menu");
-const openTaskModalButton = document.querySelector("#open-task-modal");
+const boardOptionsMenu = document.querySelector(".board-options-menu");
+const boardOptionsToggle = document.querySelector("#board-options-toggle");
+const boardOptionsPanel = document.querySelector("#board-options-panel");
+const boardNewActivityButton = document.querySelector("#board-new-activity");
+const exportBoardButton = document.querySelector("#export-board");
+const importBoardButton = document.querySelector("#import-board");
+const importBoardInput = document.querySelector("#import-board-input");
 const closeTaskModalButton = document.querySelector("#close-task-modal");
 const notificationsButton = document.querySelector("#notifications-button");
 const notificationsBadge = document.querySelector("#notifications-badge");
@@ -136,7 +142,25 @@ taskModalTitle.addEventListener("blur", handleInlineTitleBlur);
 
 taskForm.addEventListener("submit", handleTaskSubmit);
 resetButton.addEventListener("click", closeTaskModal);
-openTaskModalButton.addEventListener("click", () => openTaskModal());
+boardOptionsToggle.addEventListener("click", (event) => {
+  event.stopPropagation();
+  setFiltersOpen(false);
+  setNotificationsOpen(false);
+  setBoardOptionsOpen(boardOptionsPanel.hidden);
+});
+boardNewActivityButton.addEventListener("click", () => {
+  setBoardOptionsOpen(false);
+  openTaskModal();
+});
+exportBoardButton.addEventListener("click", () => {
+  setBoardOptionsOpen(false);
+  exportBoardToExcel();
+});
+importBoardButton.addEventListener("click", () => {
+  setBoardOptionsOpen(false);
+  importBoardInput.click();
+});
+importBoardInput.addEventListener("change", handleBoardImport);
 closeTaskModalButton?.addEventListener("click", closeTaskModal);
 addChecklistItemButton.addEventListener("click", addChecklistItem);
 addLinkButton.addEventListener("click", addLink);
@@ -144,6 +168,7 @@ addCommentButton.addEventListener("click", addComment);
 notesButton.addEventListener("click", () => {
   setFiltersOpen(false);
   setNotificationsOpen(false);
+  setBoardOptionsOpen(false);
   setNotesDrawerOpen(notesDrawer.hidden);
 });
 closeNotesDrawerButton.addEventListener("click", closeNotesDrawer);
@@ -219,12 +244,14 @@ clearFiltersButton.addEventListener("click", () => {
 filtersToggle.addEventListener("click", (event) => {
   event.stopPropagation();
   setNotificationsOpen(false);
+  setBoardOptionsOpen(false);
   setFiltersOpen(filtersPanel.hidden);
 });
 
 notificationsButton.addEventListener("click", (event) => {
   event.stopPropagation();
   setFiltersOpen(false);
+  setBoardOptionsOpen(false);
   setNotificationsOpen(notificationsPanel.hidden);
 });
 
@@ -235,6 +262,10 @@ document.addEventListener("click", (event) => {
 
   if (!notificationsMenu.contains(event.target)) {
     setNotificationsOpen(false);
+  }
+
+  if (!boardOptionsMenu.contains(event.target)) {
+    setBoardOptionsOpen(false);
   }
 
   if (!event.target.closest(".kanban-column__menu")) {
@@ -250,6 +281,7 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     setFiltersOpen(false);
     setNotificationsOpen(false);
+    setBoardOptionsOpen(false);
     closeColumnMenu();
     closeTaskMenu();
     closeNotesDrawer();
@@ -263,6 +295,7 @@ document.addEventListener("keydown", (event) => {
 window.addEventListener("resize", () => {
   positionTopbarPopover(filtersPanel, filtersToggle);
   positionTopbarPopover(notificationsPanel, notificationsButton);
+  positionTopbarPopover(boardOptionsPanel, boardOptionsToggle);
 });
 
 renderNotesEditor();
@@ -1127,6 +1160,7 @@ function openTaskModal(task, options = {}) {
   setNotesDrawerOpen(false);
   setFiltersOpen(false);
   setNotificationsOpen(false);
+  setBoardOptionsOpen(false);
 
   if (task && !isClone) {
     fillForm(task);
@@ -1172,6 +1206,15 @@ function setNotificationsOpen(isOpen) {
 
   if (isOpen) {
     positionTopbarPopover(notificationsPanel, notificationsButton);
+  }
+}
+
+function setBoardOptionsOpen(isOpen) {
+  boardOptionsPanel.hidden = !isOpen;
+  boardOptionsToggle.setAttribute("aria-expanded", String(isOpen));
+
+  if (isOpen) {
+    positionTopbarPopover(boardOptionsPanel, boardOptionsToggle);
   }
 }
 
@@ -2052,6 +2095,279 @@ function getFilteredTasks() {
 
     return matchesSearch && matchesPriority;
   });
+}
+
+function exportBoardToExcel() {
+  const headers = [
+    "Title",
+    "Description",
+    "Owner",
+    "Project",
+    "Status",
+    "Priority",
+    "Due Date",
+    "Tasks",
+    "Links",
+    "Log",
+  ];
+
+  const rows = state.tasks.map((task) => [
+    task.title,
+    task.description,
+    task.owner,
+    task.project,
+    getColumnTitle(task.status),
+    task.priority,
+    task.dueDate ? formatDate(task.dueDate) : "",
+    task.checklist
+      .map((item) => `${item.done ? "[x]" : "[ ]"} ${item.text}`)
+      .join("\n"),
+    task.links
+      .map((link) => `${link.title}: ${link.url}`)
+      .join("\n"),
+    task.comments
+      .map((comment) => `${formatCommentTime(comment.createdAt)} - ${comment.text}`)
+      .join("\n"),
+  ]);
+
+  const csv = [headers, ...rows]
+    .map((row) => row.map(escapeCsvCell).join(","))
+    .join("\n");
+  const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const downloadLink = document.createElement("a");
+
+  downloadLink.href = url;
+  downloadLink.download = `planner-board-${new Date().toISOString().slice(0, 10)}.csv`;
+  downloadLink.click();
+  URL.revokeObjectURL(url);
+}
+
+function handleBoardImport(event) {
+  const [file] = event.target.files;
+
+  if (!file) {
+    return;
+  }
+
+  const reader = new FileReader();
+
+  reader.addEventListener("load", () => {
+    try {
+      const importedTasks = parseImportedBoard(String(reader.result ?? ""));
+
+      if (!importedTasks.length) {
+        window.alert("No activities found in this file.");
+        return;
+      }
+
+      const shouldImport = window.confirm(
+        `Import ${importedTasks.length} activities? This will replace the current board.`
+      );
+
+      if (!shouldImport) {
+        return;
+      }
+
+      state.tasks = importedTasks;
+      closeTaskModal();
+      closeNotesDrawer();
+      saveTasks();
+      render();
+    } catch (error) {
+      console.error("Unable to import planner board:", error);
+      window.alert("Unable to import this file. Please use a CSV exported from this planner.");
+    } finally {
+      importBoardInput.value = "";
+    }
+  });
+
+  reader.addEventListener("error", () => {
+    window.alert("Unable to read this file.");
+    importBoardInput.value = "";
+  });
+
+  reader.readAsText(file);
+}
+
+function parseImportedBoard(csvText) {
+  const rows = parseCsvRows(csvText.replace(/^\uFEFF/, ""));
+
+  if (rows.length < 2) {
+    return [];
+  }
+
+  const headers = rows[0].map((header) => header.trim().toLowerCase());
+  const columnIndex = new Map(headers.map((header, index) => [header, index]));
+  const importedAt = Date.now();
+  const orderByStatus = new Map();
+
+  return rows
+    .slice(1)
+    .map((row, index) => {
+      const status = parseImportedStatus(getImportedCell(row, columnIndex, "status"));
+      const nextOrder = (orderByStatus.get(status) ?? 0) + 1;
+      orderByStatus.set(status, nextOrder);
+
+      return normalizeTask({
+        id: generateId(),
+        title: getImportedCell(row, columnIndex, "title") || "Imported activity",
+        description: getImportedCell(row, columnIndex, "description"),
+        owner: getImportedCell(row, columnIndex, "owner"),
+        project: getImportedCell(row, columnIndex, "project") || "General",
+        status,
+        priority: getImportedCell(row, columnIndex, "priority").toLowerCase(),
+        dueDate: parseImportedDate(getImportedCell(row, columnIndex, "due date")),
+        createdAt: importedAt + index,
+        order: nextOrder,
+        showChecklistOnCard: true,
+        checklist: parseImportedChecklist(getImportedCell(row, columnIndex, "tasks")),
+        links: parseImportedLinks(getImportedCell(row, columnIndex, "links")),
+        comments: parseImportedLog(getImportedCell(row, columnIndex, "log")),
+      });
+    })
+    .filter((task) => task.title);
+}
+
+function parseCsvRows(text) {
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let inQuotes = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const nextChar = text[index + 1];
+
+    if (char === '"' && inQuotes && nextChar === '"') {
+      cell += '"';
+      index += 1;
+      continue;
+    }
+
+    if (char === '"') {
+      inQuotes = !inQuotes;
+      continue;
+    }
+
+    if (char === "," && !inQuotes) {
+      row.push(cell);
+      cell = "";
+      continue;
+    }
+
+    if ((char === "\n" || char === "\r") && !inQuotes) {
+      if (char === "\r" && nextChar === "\n") {
+        index += 1;
+      }
+
+      row.push(cell);
+
+      if (row.some((value) => value.trim())) {
+        rows.push(row);
+      }
+
+      row = [];
+      cell = "";
+      continue;
+    }
+
+    cell += char;
+  }
+
+  row.push(cell);
+
+  if (row.some((value) => value.trim())) {
+    rows.push(row);
+  }
+
+  return rows;
+}
+
+function getImportedCell(row, columnIndex, columnName) {
+  const index = columnIndex.get(columnName);
+  return index === undefined ? "" : String(row[index] ?? "").trim();
+}
+
+function parseImportedStatus(value) {
+  const normalized = value.trim().toLowerCase();
+  const byKey = COLUMN_CONFIG.find((column) => column.key === normalized);
+  const byTitle = COLUMN_CONFIG.find((column) => column.title.toLowerCase() === normalized);
+
+  return byKey?.key ?? byTitle?.key ?? "backlog";
+}
+
+function parseImportedDate(value) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  const slashDate = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+
+  if (slashDate) {
+    const [, day, month, year] = slashDate;
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+
+  const isoDate = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+
+  if (isoDate) {
+    const [, year, month, day] = isoDate;
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+
+  return "";
+}
+
+function parseImportedChecklist(value) {
+  return value
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const done = /^\[x\]/i.test(line);
+      const text = line.replace(/^\[[ x]\]\s*/i, "").trim();
+      return { id: generateId(), text, done };
+    })
+    .filter((item) => item.text);
+}
+
+function parseImportedLinks(value) {
+  return value
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const separatorIndex = line.indexOf(": ");
+      const title = separatorIndex > 0 ? line.slice(0, separatorIndex).trim() : "";
+      const rawUrl = separatorIndex > 0 ? line.slice(separatorIndex + 2).trim() : line;
+      const url = normalizeLinkUrl(rawUrl);
+
+      return { id: generateId(), title: title || url, url };
+    })
+    .filter((link) => link.url);
+}
+
+function parseImportedLog(value) {
+  return value
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line, index) => ({
+      id: generateId(),
+      text: line.replace(/^.+? - /, "").trim() || line,
+      createdAt: Date.now() + index,
+    }));
+}
+
+function escapeCsvCell(value) {
+  return `"${String(value ?? "").replaceAll('"', '""')}"`;
+}
+
+function getColumnTitle(status) {
+  return COLUMN_CONFIG.find((column) => column.key === status)?.title ?? status;
 }
 
 function getOverdueTasks() {

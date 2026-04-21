@@ -95,6 +95,7 @@ select {
 .command-topbar,
 .board-panel,
 .filters-popover,
+.board-options-popover,
 .notifications-popover,
 .notes-drawer__panel,
 .task-modal__panel {
@@ -221,7 +222,8 @@ select {
   align-items: center;
 }
 
-.notifications-menu {
+.notifications-menu,
+.board-options-menu {
   position: relative;
   display: flex;
   align-items: center;
@@ -261,6 +263,35 @@ select {
 
 .filters-popover .button {
   margin-top: 0.55rem;
+}
+
+.board-options-popover {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 40;
+  width: min(190px, calc(100vw - 1.5rem));
+  max-width: calc(100vw - 1.5rem);
+  max-height: min(70vh, calc(100vh - 4rem));
+  overflow: auto;
+  padding: 0.28rem;
+}
+
+.board-options-popover button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+  padding: 0.48rem 0.58rem;
+  text-align: left;
+  color: var(--text);
+  font: inherit;
+}
+
+.board-options-popover button:hover,
+.board-options-popover button:focus-visible {
+  background: var(--surface-subtle);
+  outline: none;
 }
 
 .notifications-popover {
@@ -393,20 +424,6 @@ select {
   border-color: transparent;
   box-shadow: none;
   /* padding: 0.5rem; */
-}
-
-.board-panel__header {
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
-  gap: 0.8rem;
-  margin-bottom: 0.8rem;
-}
-
-.board-panel__header h1 {
-  margin: 0;
-  font-size: clamp(1.2375rem, 2.5vw, 1.6875rem);
-  letter-spacing: -0.03em;
 }
 
 .board-panel__hint {
@@ -1573,12 +1590,6 @@ select {
   }
 
   .command-topbar {
-    display: flex;
-    flex-wrap: nowrap;
-    align-items: center;
-  }
-
-  .board-panel__header {
     display: flex;
     flex-wrap: nowrap;
     align-items: center;
