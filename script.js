@@ -1,6 +1,5 @@
 const STORAGE_KEY = "flowboard-planner-state";
 const NOTES_STORAGE_KEY = "flowboard-planner-notes";
-const SIDEBAR_BREAKPOINT = 1600;
 
 const COLUMN_CONFIG = [
   {
@@ -90,9 +89,6 @@ const filtersToggle = document.querySelector("#filters-toggle");
 const filtersPanel = document.querySelector("#filters-panel");
 const filtersMenu = document.querySelector(".filters-menu");
 const notificationsMenu = document.querySelector(".notifications-menu");
-const sidebar = document.querySelector(".sidebar");
-const sidebarToggle = document.querySelector("#sidebar-toggle");
-const sidebarBackdrop = document.querySelector("#sidebar-backdrop");
 const openTaskModalButton = document.querySelector("#open-task-modal");
 const closeTaskModalButton = document.querySelector("#close-task-modal");
 const notificationsButton = document.querySelector("#notifications-button");
@@ -139,12 +135,7 @@ openTaskModalButton.addEventListener("click", () => openTaskModal());
 closeTaskModalButton?.addEventListener("click", closeTaskModal);
 addChecklistItemButton.addEventListener("click", addChecklistItem);
 addCommentButton.addEventListener("click", addComment);
-sidebarToggle.addEventListener("click", () => {
-  setSidebarOpen(!document.body.classList.contains("sidebar-open"));
-});
-sidebarBackdrop.addEventListener("click", closeSidebar);
 notesButton.addEventListener("click", () => {
-  closeSidebar();
   setFiltersOpen(false);
   setNotificationsOpen(false);
   setNotesDrawerOpen(notesDrawer.hidden);
@@ -206,21 +197,18 @@ clearFiltersButton.addEventListener("click", () => {
   state.filters.priority = "all";
   searchInput.value = "";
   priorityFilter.value = "all";
-  closeSidebar();
   setFiltersOpen(false);
   render();
 });
 
 filtersToggle.addEventListener("click", (event) => {
   event.stopPropagation();
-  closeSidebar();
   setNotificationsOpen(false);
   setFiltersOpen(filtersPanel.hidden);
 });
 
 notificationsButton.addEventListener("click", (event) => {
   event.stopPropagation();
-  closeSidebar();
   setFiltersOpen(false);
   setNotificationsOpen(notificationsPanel.hidden);
 });
@@ -245,7 +233,6 @@ document.addEventListener("click", (event) => {
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
-    closeSidebar();
     setFiltersOpen(false);
     setNotificationsOpen(false);
     closeColumnMenu();
@@ -261,10 +248,6 @@ document.addEventListener("keydown", (event) => {
 window.addEventListener("resize", () => {
   positionTopbarPopover(filtersPanel, filtersToggle);
   positionTopbarPopover(notificationsPanel, notificationsButton);
-
-  if (window.innerWidth > SIDEBAR_BREAKPOINT) {
-    closeSidebar();
-  }
 });
 
 renderNotesEditor();
@@ -739,21 +722,6 @@ function escapeHtml(text) {
     .replaceAll("'", "&#39;");
 }
 
-function setSidebarOpen(isOpen) {
-  document.body.classList.toggle("sidebar-open", isOpen);
-  sidebarToggle.setAttribute("aria-expanded", String(isOpen));
-  sidebar.setAttribute("aria-hidden", String(!isOpen && window.innerWidth <= SIDEBAR_BREAKPOINT));
-  sidebarBackdrop.hidden = !isOpen;
-}
-
-function closeSidebar() {
-  if (!document.body.classList.contains("sidebar-open")) {
-    return;
-  }
-
-  setSidebarOpen(false);
-}
-
 function replaceNotesBlockElement(element, nextTagName) {
   const replacement = document.createElement(nextTagName.toLowerCase());
   replacement.innerHTML = element.innerHTML || "<br>";
@@ -1137,7 +1105,6 @@ function resetForm() {
 function openTaskModal(task, options = {}) {
   const { isClone = false } = options;
 
-  closeSidebar();
   setNotesDrawerOpen(false);
   setFiltersOpen(false);
   setNotificationsOpen(false);
@@ -1190,10 +1157,6 @@ function setNotificationsOpen(isOpen) {
 }
 
 function setNotesDrawerOpen(isOpen) {
-  if (isOpen) {
-    closeSidebar();
-  }
-
   notesDrawer.hidden = !isOpen;
   notesButton.setAttribute("aria-expanded", String(isOpen));
   syncOverlayState();
@@ -1436,8 +1399,6 @@ function closeTaskMenu() {
 function createTaskCard(task) {
   const fragment = taskTemplate.content.cloneNode(true);
   const card = fragment.querySelector(".task-card");
-  const headerNode = fragment.querySelector(".task-card__header");
-  const dateNode = fragment.querySelector(".task-card__date");
   const titleNode = fragment.querySelector(".task-card__title");
   const metaNode = fragment.querySelector(".task-card__meta");
   const ownerNode = fragment.querySelector(".task-card__owner");
@@ -1458,12 +1419,7 @@ function createTaskCard(task) {
   }
 
   if (task.dueDate) {
-    const overdue = isOverdue(task);
-    dateNode.textContent = formatDate(task.dueDate);
-    dateNode.classList.toggle("is-overdue", overdue);
-  } else {
-    dateNode.remove();
-    headerNode.remove();
+    metaNode.appendChild(createDatePill(task));
   }
 
   ownerNode.appendChild(createOwnerAvatar(task.owner));
@@ -1605,6 +1561,14 @@ function createIconPill(icon, text) {
   const pill = document.createElement("span");
   pill.className = "task-card__pill";
   pill.append(icon, document.createTextNode(text));
+  return pill;
+}
+
+function createDatePill(task) {
+  const pill = document.createElement("span");
+  pill.className = "task-card__date";
+  pill.textContent = formatDate(task.dueDate);
+  pill.classList.toggle("is-overdue", isOverdue(task));
   return pill;
 }
 
@@ -2093,11 +2057,12 @@ function isOverdue(task) {
 }
 
 function formatDate(value) {
-  return new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }).format(new Date(`${value}T00:00:00`));
+  const date = new Date(`${value}T00:00:00`);
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+
+  return `${day}/${month}/${year}`;
 }
 
 function findTaskById(taskId) {
